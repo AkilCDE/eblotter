@@ -1,0 +1,735 @@
+package main.eblotterr;
+
+import java.awt.*;
+import java.awt.geom.RoundRectangle2D;
+import java.sql.*;
+import java.util.List;
+import javax.swing.*;
+import javax.swing.border.*;
+
+/**
+ * Dialog for viewing and editing the details of a single blotter record.
+ * Pending records can be edited; resolved records are read-only.
+ * Extracted from dashboard.java to keep the dashboard clean.
+ */
+public class ViewBlotterDialog {
+
+    // ── Color palette (matches dashboard) ─────────────────────────────────
+    private static final Color WHITE        = Color.WHITE;
+    private static final Color BLUE         = new Color(45, 118, 200);
+    private static final Color BLUE_HOVER   = new Color(35, 95, 160);
+    private static final Color PENDING_BG   = new Color(255, 247, 235);
+    private static final Color PENDING_FG   = new Color(255, 140, 60);
+    private static final Color RESOLVED_BG  = new Color(228, 248, 240);
+    private static final Color RESOLVED_FG  = new Color(46, 176, 120);
+    private static final Color EDIT_BG      = new Color(255, 252, 240);
+    private static final Color EDIT_BORDER  = new Color(255, 200, 100);
+
+    private final JFrame parentFrame;
+    private final List<Object[]> blotterData;
+    private final StatusUpdateHandler statusUpdateHandler;
+    private final PrintHandler printHandler;
+    private final ConnectionProvider connectionProvider;
+    private final Runnable onDataChanged;
+    private final String userRole; // "secretary", "captain", or "kagawad"
+
+    // ── Editable field references ─────────────────────────────────────────
+    private JTextField tfComplainant;
+    private JTextField tfRespondent;
+    private JTextField tfAddress;
+    private JTextField tfCompType;
+    private JTextArea taDescription;
+    private boolean editMode = false;
+
+    @FunctionalInterface
+    public interface StatusUpdateHandler {
+        void showUpdateStatusDialog(int row);
+    }
+
+    @FunctionalInterface
+    public interface PrintHandler {
+        void printRecord(int row);
+    }
+
+    @FunctionalInterface
+    public interface ConnectionProvider {
+        Connection getConnection() throws ClassNotFoundException, SQLException;
+    }
+
+    /**
+     * @return true if the current user is a secretary (full edit access)
+     */
+    private boolean isSecretary() {
+        return "secretary".equalsIgnoreCase(userRole);
+    }
+
+    /**
+     * @param parentFrame         the parent frame (dashboard)
+     * @param blotterData         the shared blotter data list
+     * @param statusUpdateHandler handler for "Update Status" button
+     * @param printHandler        handler for "Print Report" button
+     * @param connectionProvider  supplies DB connections for saving edits
+     * @param onDataChanged       called after a successful save (reload data / refresh UI)
+     * @param userRole            the role of the logged-in user
+     */
+    public ViewBlotterDialog(JFrame parentFrame, List<Object[]> blotterData,
+                             StatusUpdateHandler statusUpdateHandler,
+                             PrintHandler printHandler,
+                             ConnectionProvider connectionProvider,
+                             Runnable onDataChanged,
+                             String userRole) {
+        this.parentFrame = parentFrame;
+        this.blotterData = blotterData;
+        this.statusUpdateHandler = statusUpdateHandler;
+        this.printHandler = printHandler;
+        this.connectionProvider = connectionProvider;
+        this.onDataChanged = onDataChanged;
+        this.userRole = (userRole != null) ? userRole.toLowerCase() : "secretary";
+    }
+
+    /**
+     * Show the detail view dialog for a given row index.
+     */
+    public void show(int row) {
+        if (row < 0 || row >= blotterData.size()) return;
+
+        // Reset edit mode for each new dialog
+        editMode = false;
+
+        Object[] data = blotterData.get(row);
+        Object blotterNum  = data[0];
+        Object complainant = data[1];
+        Object respondent  = data[2];
+        Object date        = data[3];
+        Object status      = data[4];
+        Object address     = data[5];
+        Object compType    = data[6];
+        Object description = data[7];
+
+        boolean isPending = "pending".equalsIgnoreCase(status != null ? status.toString() : "");
+
+        JDialog detailDialog = new JDialog(parentFrame, "Blotter Details - #" + blotterNum, true);
+        detailDialog.setSize(750, 700);
+        detailDialog.setMinimumSize(new Dimension(480, 500));
+        detailDialog.setLocationRelativeTo(parentFrame);
+        detailDialog.getContentPane().setBackground(new Color(0xEAF1FB));
+
+        // Main panel with background
+        JPanel mainPanel = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                g.setColor(new Color(0xEAF1FB));
+                g.fillRect(0, 0, getWidth(), getHeight());
+            }
+        };
+        mainPanel.setOpaque(false);
+        mainPanel.setLayout(new BorderLayout());
+        mainPanel.setBorder(new EmptyBorder(0, 0, 0, 0));
+
+        // Header
+        mainPanel.add(buildDetailHeader(blotterNum.toString()), BorderLayout.NORTH);
+
+        // Content body
+        JPanel body = new JPanel();
+        body.setOpaque(false);
+        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+        body.setBorder(new EmptyBorder(16, 24, 24, 24));
+
+        // Blotter Number Bar
+        body.add(buildDetailBlotterBar(blotterNum.toString()));
+        body.add(Box.createVerticalStrut(14));
+
+        // Parties Involved Card (editable fields)
+        body.add(buildDetailPartiesCard(complainant, respondent, address, date));
+        body.add(Box.createVerticalStrut(16));
+
+        // Incident Details Card (editable fields)
+        body.add(buildDetailIncidentCard(compType, description, status));
+        body.add(Box.createVerticalStrut(20));
+
+        // Button Row (with Edit / Save buttons)
+        body.add(buildDetailButtonRow(detailDialog, row, status, blotterNum));
+        body.add(Box.createVerticalStrut(10));
+
+        JScrollPane scroll = new JScrollPane(body);
+        scroll.setBorder(null);
+        scroll.getViewport().setOpaque(false);
+        scroll.setOpaque(false);
+        scroll.getVerticalScrollBar().setUnitIncrement(12);
+
+        mainPanel.add(scroll, BorderLayout.CENTER);
+
+        detailDialog.setContentPane(mainPanel);
+        detailDialog.setVisible(true);
+    }
+
+    // ── Toggle edit mode ──────────────────────────────────────────────────
+
+    private void setFieldsEditable(boolean editable) {
+        editMode = editable;
+        if (tfComplainant != null) {
+            tfComplainant.setEditable(editable);
+            tfComplainant.setBackground(editable ? EDIT_BG : WHITE);
+            tfComplainant.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(editable ? EDIT_BORDER : new Color(0xC8D8EC), 1, 8),
+                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+        }
+        if (tfRespondent != null) {
+            tfRespondent.setEditable(editable);
+            tfRespondent.setBackground(editable ? EDIT_BG : new Color(0xFFF0EE));
+            tfRespondent.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(editable ? EDIT_BORDER : new Color(0xF5C0BB), 1, 8),
+                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+        }
+        if (tfAddress != null) {
+            tfAddress.setEditable(editable);
+            tfAddress.setBackground(editable ? EDIT_BG : WHITE);
+            tfAddress.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(editable ? EDIT_BORDER : new Color(0xC8D8EC), 1, 8),
+                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+        }
+        if (tfCompType != null) {
+            tfCompType.setEditable(editable);
+            tfCompType.setBackground(editable ? EDIT_BG : WHITE);
+            tfCompType.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(editable ? EDIT_BORDER : new Color(0xC8D8EC), 1, 8),
+                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+        }
+        if (taDescription != null) {
+            taDescription.setEditable(editable);
+            taDescription.setBackground(editable ? EDIT_BG : WHITE);
+            taDescription.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(editable ? EDIT_BORDER : new Color(0xC8D8EC), 1, 8),
+                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
+        }
+    }
+
+    // ── Save edited data ──────────────────────────────────────────────────
+
+    private void saveEdits(JDialog dialog, int row, Object blotterNum) {
+        String newComplainant = tfComplainant.getText().trim();
+        String newRespondent  = tfRespondent.getText().trim();
+        String newAddress     = tfAddress.getText().trim();
+        String newCompType    = tfCompType.getText().trim();
+        String newDescription = taDescription.getText().trim();
+
+        // Validation
+        if (newComplainant.isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Complainant name cannot be empty.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfComplainant.requestFocus();
+            return;
+        }
+        if (newRespondent.isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Respondent name cannot be empty.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfRespondent.requestFocus();
+            return;
+        }
+        if (newAddress.isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Address cannot be empty.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfAddress.requestFocus();
+            return;
+        }
+
+        // Confirm save
+        int confirm = JOptionPane.showConfirmDialog(dialog,
+            "Are you sure you want to save the changes?",
+            "Confirm Save", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        new SwingWorker<Boolean, Void>() {
+            @Override
+            protected Boolean doInBackground() throws Exception {
+                try (Connection conn = connectionProvider.getConnection()) {
+                    String update = "UPDATE blotter SET complainant = ?, Respondent = ?, " +
+                                  "Cmplnt_address = ?, complt_type = ?, description = ? " +
+                                  "WHERE blotter_id = ?";
+                    try (PreparedStatement pstmt = conn.prepareStatement(update)) {
+                        pstmt.setString(1, newComplainant);
+                        pstmt.setString(2, newRespondent);
+                        pstmt.setString(3, newAddress);
+                        pstmt.setString(4, newCompType);
+                        pstmt.setString(5, newDescription);
+                        pstmt.setInt(6, Integer.parseInt(blotterNum.toString()));
+                        pstmt.executeUpdate();
+                    }
+                }
+                return true;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    if (get()) {
+                        JOptionPane.showMessageDialog(dialog,
+                            "Blotter details updated successfully!",
+                            "Success", JOptionPane.INFORMATION_MESSAGE);
+                        if (onDataChanged != null) onDataChanged.run();
+                        dialog.dispose();
+                    }
+                } catch (Exception e) {
+                    String msg = "Error saving changes: ";
+                    if (e.getCause() != null && e.getCause().getMessage() != null)
+                        msg += e.getCause().getMessage();
+                    else if (e.getMessage() != null)
+                        msg += e.getMessage();
+                    JOptionPane.showMessageDialog(dialog, msg, "Error", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        }.execute();
+    }
+
+    // ── Detail View Helper Methods ────────────────────────────────────────────
+
+    private JPanel buildDetailHeader(String blotterNum) {
+        JPanel header = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                g.setColor(new Color(0x1B3A5C));
+                g.fillRect(0, 0, getWidth(), getHeight());
+            }
+        };
+        header.setOpaque(false);
+        header.setBorder(BorderFactory.createEmptyBorder(14, 20, 14, 20));
+
+        JButton closeBtn = new JButton("← Back");
+        closeBtn.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        closeBtn.setForeground(new Color(0xA8C4E0));
+        closeBtn.setContentAreaFilled(false);
+        closeBtn.setBorderPainted(false);
+        closeBtn.setFocusPainted(false);
+        closeBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        closeBtn.addActionListener(e -> {
+            Window window = SwingUtilities.getWindowAncestor(header);
+            if (window != null) window.dispose();
+        });
+
+        JPanel titleBlock = new JPanel();
+        titleBlock.setOpaque(false);
+        titleBlock.setLayout(new BoxLayout(titleBlock, BoxLayout.Y_AXIS));
+
+        JLabel subLabel = new JLabel("CASE DETAILS");
+        subLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        subLabel.setForeground(new Color(0xA8C4E0));
+
+        JLabel titleLabel = new JLabel("Blotter Information");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(Color.WHITE);
+
+        titleBlock.add(subLabel);
+        titleBlock.add(titleLabel);
+
+        JLabel menuDots = new JLabel("⋯");
+        menuDots.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        menuDots.setForeground(new Color(0xA8C4E0));
+        menuDots.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        left.setOpaque(false);
+        left.add(closeBtn);
+        left.add(titleBlock);
+
+        header.add(left, BorderLayout.WEST);
+        header.add(menuDots, BorderLayout.EAST);
+
+        return header;
+    }
+
+    private JPanel buildDetailBlotterBar(String blotterNum) {
+        JPanel bar = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0x1B3A5C));
+                g2.fill(new RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), 10, 10));
+                g2.dispose();
+            }
+        };
+        bar.setOpaque(false);
+        bar.setBorder(BorderFactory.createEmptyBorder(12, 18, 12, 18));
+        bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+
+        JLabel lKey = new JLabel("Blotter Number");
+        lKey.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lKey.setForeground(new Color(0xA8C4E0));
+
+        JLabel lVal = new JLabel("#" + blotterNum);
+        lVal.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        lVal.setForeground(Color.WHITE);
+
+        bar.add(lKey, BorderLayout.WEST);
+        bar.add(lVal, BorderLayout.EAST);
+        return bar;
+    }
+
+    private JPanel buildDetailPartiesCard(Object complainant, Object respondent, Object address, Object date) {
+        JPanel card = createDetailCard();
+
+        JLabel sectionLabel = createDetailSectionHeader("PARTIES INVOLVED");
+
+        // Row 1: Complainant Name | Respondent Name
+        JPanel row1 = new JPanel(new GridLayout(1, 2, 14, 0));
+        row1.setOpaque(false);
+
+        JPanel complainantPanel = new JPanel();
+        complainantPanel.setOpaque(false);
+        complainantPanel.setLayout(new BoxLayout(complainantPanel, BoxLayout.Y_AXIS));
+        JLabel lblComplainant = new JLabel("Complainant's Full Name");
+        lblComplainant.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        lblComplainant.setForeground(new Color(0x2C4A6E));
+        lblComplainant.setAlignmentX(Component.LEFT_ALIGNMENT);
+        tfComplainant = new JTextField(complainant != null ? complainant.toString() : "N/A");
+        styleDetailTextField(tfComplainant, false);
+        complainantPanel.add(lblComplainant);
+        complainantPanel.add(Box.createVerticalStrut(4));
+        complainantPanel.add(tfComplainant);
+
+        JPanel respondentPanel = new JPanel();
+        respondentPanel.setOpaque(false);
+        respondentPanel.setLayout(new BoxLayout(respondentPanel, BoxLayout.Y_AXIS));
+        JLabel lblRespondent = new JLabel("Respondent's Full Name");
+        lblRespondent.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        lblRespondent.setForeground(new Color(0x2C4A6E));
+        lblRespondent.setAlignmentX(Component.LEFT_ALIGNMENT);
+        tfRespondent = new JTextField(respondent != null ? respondent.toString() : "N/A");
+        styleDetailTextField(tfRespondent, true);
+        respondentPanel.add(lblRespondent);
+        respondentPanel.add(Box.createVerticalStrut(4));
+        respondentPanel.add(tfRespondent);
+
+        row1.add(complainantPanel);
+        row1.add(respondentPanel);
+
+        // Row 2: Complainant's Address | Date of Incident
+        JPanel row2 = new JPanel(new GridLayout(1, 2, 14, 0));
+        row2.setOpaque(false);
+
+        JPanel addressPanel = new JPanel();
+        addressPanel.setOpaque(false);
+        addressPanel.setLayout(new BoxLayout(addressPanel, BoxLayout.Y_AXIS));
+        JLabel lblAddress = new JLabel("Complainant's Address");
+        lblAddress.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        lblAddress.setForeground(new Color(0x2C4A6E));
+        lblAddress.setAlignmentX(Component.LEFT_ALIGNMENT);
+        tfAddress = new JTextField(address != null ? address.toString() : "N/A");
+        styleDetailTextField(tfAddress, false);
+        addressPanel.add(lblAddress);
+        addressPanel.add(Box.createVerticalStrut(4));
+        addressPanel.add(tfAddress);
+
+        row2.add(addressPanel);
+        row2.add(createDetailField("Date of Incident", date != null ? date.toString() : "N/A", false));
+
+        card.add(sectionLabel);
+        card.add(Box.createVerticalStrut(12));
+        card.add(row1);
+        card.add(Box.createVerticalStrut(12));
+        card.add(row2);
+
+        return card;
+    }
+
+    private JPanel buildDetailIncidentCard(Object compType, Object description, Object status) {
+        JPanel card = createDetailCard();
+
+        JLabel sectionLabel = createDetailSectionHeader("INCIDENT DETAILS");
+
+        // Type of Complaint field (editable)
+        JPanel typePanel = new JPanel();
+        typePanel.setOpaque(false);
+        typePanel.setLayout(new BoxLayout(typePanel, BoxLayout.Y_AXIS));
+        JLabel lblType = new JLabel("Type of Complaint");
+        lblType.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        lblType.setForeground(new Color(0x2C4A6E));
+        lblType.setAlignmentX(Component.LEFT_ALIGNMENT);
+        tfCompType = new JTextField(compType != null ? compType.toString() : "N/A");
+        styleDetailTextField(tfCompType, false);
+        typePanel.add(lblType);
+        typePanel.add(Box.createVerticalStrut(4));
+        typePanel.add(tfCompType);
+
+        // Description field (editable)
+        JPanel descriptionPanel = new JPanel();
+        descriptionPanel.setOpaque(false);
+        descriptionPanel.setLayout(new BoxLayout(descriptionPanel, BoxLayout.Y_AXIS));
+
+        JLabel descriptionLabel = new JLabel("Description / Incident Details");
+        descriptionLabel.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        descriptionLabel.setForeground(new Color(0x2C4A6E));
+        descriptionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        taDescription = new JTextArea(description != null ? description.toString() : "");
+        taDescription.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        taDescription.setForeground(new Color(0x1A1A2E));
+        taDescription.setBackground(Color.WHITE);
+        taDescription.setEditable(false);
+        taDescription.setLineWrap(true);
+        taDescription.setWrapStyleWord(true);
+        taDescription.setBorder(BorderFactory.createCompoundBorder(
+            new RoundedBorder(new Color(0xC8D8EC), 1, 8),
+            BorderFactory.createEmptyBorder(8, 12, 8, 12)));
+        taDescription.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JScrollPane descriptionScroll = new JScrollPane(taDescription);
+        descriptionScroll.setBorder(null);
+        descriptionScroll.setOpaque(false);
+        descriptionScroll.getViewport().setOpaque(false);
+        descriptionScroll.setPreferredSize(new Dimension(0, 100));
+        descriptionScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
+        descriptionScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        descriptionPanel.add(descriptionLabel);
+        descriptionPanel.add(Box.createVerticalStrut(4));
+        descriptionPanel.add(descriptionScroll);
+
+        // Status badge
+        String statusStr = status != null ? status.toString() : "pending";
+        boolean isPending = "pending".equalsIgnoreCase(statusStr);
+        String displayStatus = isPending ? "Pending" : "Resolved";
+
+        JPanel statusBadge = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(isPending ? PENDING_BG : RESOLVED_BG);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
+                g2.dispose();
+            }
+        };
+        statusBadge.setLayout(new BorderLayout());
+        statusBadge.setOpaque(false);
+        statusBadge.setBorder(BorderFactory.createEmptyBorder(4, 16, 4, 16));
+
+        JLabel statusLabel = new JLabel("● " + displayStatus);
+        statusLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        statusLabel.setForeground(isPending ? PENDING_FG : RESOLVED_FG);
+        statusBadge.add(statusLabel, BorderLayout.CENTER);
+
+        JPanel statusWrapper = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        statusWrapper.setOpaque(false);
+        statusWrapper.add(statusBadge);
+        statusWrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        card.add(sectionLabel);
+        card.add(Box.createVerticalStrut(12));
+        card.add(typePanel);
+        card.add(Box.createVerticalStrut(16));
+        card.add(descriptionPanel);
+        card.add(Box.createVerticalStrut(16));
+        card.add(new JLabel("Status:"));
+        card.add(Box.createVerticalStrut(6));
+        card.add(statusWrapper);
+
+        return card;
+    }
+
+    private JPanel buildDetailButtonRow(JDialog dialog, int row, Object status, Object blotterNum) {
+        JPanel rowPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
+        rowPanel.setOpaque(false);
+        rowPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+
+        String statusStr = status != null ? status.toString() : "pending";
+        boolean isPending = "pending".equalsIgnoreCase(statusStr);
+
+        JButton closeBtn = createDetailButton("Close", Color.WHITE, new Color(0x1B3A5C), true);
+        closeBtn.addActionListener(e -> dialog.dispose());
+
+        JButton printBtn = createDetailButton("Print Report", new Color(0x1B3A5C), Color.WHITE, false);
+        printBtn.addActionListener(e -> {
+            dialog.dispose();
+            printHandler.printRecord(row);
+        });
+
+        // Only secretary can edit or update status on pending blotters
+        if (isPending && isSecretary()) {
+            // Edit / Save button
+            JButton editBtn = createDetailButton("✏ Edit Details", new Color(0x2D76C8), Color.WHITE, false);
+            JButton saveBtn = createDetailButton("💾 Save Changes", new Color(0x2EB078), Color.WHITE, false);
+            JButton cancelEditBtn = createDetailButton("Cancel Edit", new Color(0x6C757D), Color.WHITE, false);
+
+            // Save button is hidden initially
+            saveBtn.setVisible(false);
+            cancelEditBtn.setVisible(false);
+
+            editBtn.addActionListener(e -> {
+                setFieldsEditable(true);
+                editBtn.setVisible(false);
+                saveBtn.setVisible(true);
+                cancelEditBtn.setVisible(true);
+                printBtn.setVisible(false);
+                closeBtn.setVisible(false);
+                rowPanel.revalidate();
+                rowPanel.repaint();
+            });
+
+            saveBtn.addActionListener(e -> {
+                saveEdits(dialog, row, blotterNum);
+            });
+
+            cancelEditBtn.addActionListener(e -> {
+                setFieldsEditable(false);
+                // Reset field values
+                Object[] data = blotterData.get(row);
+                tfComplainant.setText(data[1] != null ? data[1].toString() : "N/A");
+                tfRespondent.setText(data[2] != null ? data[2].toString() : "N/A");
+                tfAddress.setText(data[5] != null ? data[5].toString() : "N/A");
+                tfCompType.setText(data[6] != null ? data[6].toString() : "N/A");
+                taDescription.setText(data[7] != null ? data[7].toString() : "");
+                editBtn.setVisible(true);
+                saveBtn.setVisible(false);
+                cancelEditBtn.setVisible(false);
+                printBtn.setVisible(true);
+                closeBtn.setVisible(true);
+                rowPanel.revalidate();
+                rowPanel.repaint();
+            });
+
+            // Update Status button
+            JButton statusBtn = createDetailButton("Update Status", new Color(0xFF8C3C), Color.WHITE, false);
+            statusBtn.addActionListener(e -> {
+                dialog.dispose();
+                statusUpdateHandler.showUpdateStatusDialog(row);
+            });
+
+            rowPanel.add(editBtn);
+            rowPanel.add(saveBtn);
+            rowPanel.add(cancelEditBtn);
+            rowPanel.add(statusBtn);
+        }
+
+        rowPanel.add(printBtn);
+        rowPanel.add(closeBtn);
+
+        return rowPanel;
+    }
+
+    // ── Detail View Card Helpers ──────────────────────────────────────────────
+
+    private void styleDetailTextField(JTextField tf, boolean isRespondent) {
+        tf.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        tf.setForeground(new Color(0x1A1A2E));
+        tf.setBackground(isRespondent ? new Color(0xFFF0EE) : Color.WHITE);
+        tf.setEditable(false);
+        tf.setBorder(BorderFactory.createCompoundBorder(
+            new RoundedBorder(isRespondent ? new Color(0xF5C0BB) : new Color(0xC8D8EC), 1, 8),
+            BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+        tf.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        tf.setAlignmentX(Component.LEFT_ALIGNMENT);
+    }
+
+    private JPanel createDetailCard() {
+        JPanel card = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                // Shadow
+                g2.setColor(new Color(0, 0, 0, 18));
+                g2.fill(new RoundRectangle2D.Double(3, 5, getWidth()-6, getHeight()-6, 14, 14));
+                // Card body
+                g2.setColor(Color.WHITE);
+                g2.fill(new RoundRectangle2D.Double(0, 0, getWidth()-4, getHeight()-4, 12, 12));
+                g2.dispose();
+            }
+        };
+        card.setOpaque(false);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(BorderFactory.createEmptyBorder(18, 20, 20, 20));
+        card.setAlignmentX(Component.LEFT_ALIGNMENT);
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+        return card;
+    }
+
+    private JLabel createDetailSectionHeader(String text) {
+        JLabel lbl = new JLabel(text);
+        lbl.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        lbl.setForeground(new Color(0x1B3A5C));
+        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return lbl;
+    }
+
+    private JPanel createDetailField(String labelText, String value, boolean isRespondent) {
+        JPanel pnl = new JPanel();
+        pnl.setOpaque(false);
+        pnl.setLayout(new BoxLayout(pnl, BoxLayout.Y_AXIS));
+
+        JLabel lbl = new JLabel(labelText);
+        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        lbl.setForeground(new Color(0x2C4A6E));
+        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JTextField tf = new JTextField(value);
+        tf.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        tf.setForeground(new Color(0x1A1A2E));
+        tf.setBackground(isRespondent ? new Color(0xFFF0EE) : Color.WHITE);
+        tf.setEditable(false);
+        tf.setBorder(BorderFactory.createCompoundBorder(
+            new RoundedBorder(isRespondent ? new Color(0xF5C0BB) : new Color(0xC8D8EC), 1, 8),
+            BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+        tf.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        tf.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        pnl.add(lbl);
+        pnl.add(Box.createVerticalStrut(4));
+        pnl.add(tf);
+
+        return pnl;
+    }
+
+    private JButton createDetailButton(String text, Color bg, Color fg, boolean outlined) {
+        JButton btn = new JButton(text) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                if (getModel().isPressed())
+                    g2.setColor(bg.darker());
+                else if (getModel().isRollover())
+                    g2.setColor(bg.brighter());
+                else
+                    g2.setColor(bg);
+                g2.fill(new RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), 8, 8));
+                if (outlined) {
+                    g2.setColor(new Color(0xC0CFDF));
+                    g2.draw(new RoundRectangle2D.Double(0.5, 0.5, getWidth()-1, getHeight()-1, 8, 8));
+                }
+                g2.dispose();
+                super.paintComponent(g);
+            }
+            @Override public boolean isOpaque() { return false; }
+        };
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btn.setForeground(fg);
+        btn.setContentAreaFilled(false);
+        btn.setBorderPainted(false);
+        btn.setFocusPainted(false);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.setPreferredSize(new Dimension(text.length() > 10 ? 150 : 100, 40));
+        return btn;
+    }
+
+    // ── Rounded border ─────────────────────────────────────────────────────
+
+    private static class RoundedBorder extends AbstractBorder {
+        private final Color color;
+        private final int thickness, radius;
+
+        RoundedBorder(Color c, int t, int r) { color = c; thickness = t; radius = r; }
+
+        @Override
+        public void paintBorder(Component c, Graphics g, int x, int y, int w, int h) {
+            Graphics2D g2 = (Graphics2D) g.create();
+            g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                                RenderingHints.VALUE_ANTIALIAS_ON);
+            g2.setColor(color);
+            g2.setStroke(new BasicStroke(thickness));
+            g2.drawRoundRect(x, y, w - 1, h - 1, radius, radius);
+            g2.dispose();
+        }
+
+        @Override
+        public Insets getBorderInsets(Component c) {
+            return new Insets(radius / 3, radius / 3, radius / 3, radius / 3);
+        }
+    }
+}

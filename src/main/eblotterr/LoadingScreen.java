@@ -16,8 +16,9 @@ public class LoadingScreen extends JFrame {
         setTitle("Barangay e-Blotter - Digital Blotter Management System");
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setSize(500, 650);
+        setMinimumSize(new Dimension(360, 450));
         setLocationRelativeTo(null);
-        setResizable(false);
+        setResizable(true);
 
         JPanel root = new JPanel() {
             @Override
@@ -62,7 +63,7 @@ public class LoadingScreen extends JFrame {
         bar.setForeground(new Color(50, 140, 90));
         bar.setBackground(new Color(25, 45, 65));
         bar.setAlignmentX(Component.CENTER_ALIGNMENT);
-        bar.setMaximumSize(new Dimension(400, 22));
+        bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 22));
         bar.setPreferredSize(new Dimension(400, 22));
 
         root.add(Box.createVerticalGlue());

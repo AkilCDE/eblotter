@@ -36,14 +36,59 @@ public class login extends JFrame {
     private static final String P_HINT = "Enter password";
 
     // ── Constructor (original logic preserved) ───────────────────────────────
+    // ── Responsive references ────────────────────────────────────────────
+    private JPanel card;
+    private JLabel titleLabel;
+    private JLabel subLabel;
+    private JLabel republicLabel;
+
     public login() {
         setTitle("Login");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(480, 640);
+        setMinimumSize(new Dimension(380, 520));
         setLocationRelativeTo(null);
-        setResizable(false);
+        setResizable(true);
         setContentPane(buildRoot());
         getRootPane().setDefaultButton(loginButton);
+
+        // ── Responsive listener: adapt card on resize ───────────────────
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                adaptToSize();
+            }
+        });
+    }
+
+    private void adaptToSize() {
+        if (card == null) return;
+        int fw = getWidth();
+        int fh = getHeight();
+
+        // Card width: 80% of frame width, clamped 320..480
+        int cardW = Math.max(320, Math.min((int)(fw * 0.80), 480));
+        // Card height: 85% of frame height, clamped 440..600
+        int cardH = Math.max(440, Math.min((int)(fh * 0.85), 600));
+
+        int pad = Math.max(20, Math.min((int)(cardW * 0.09), 40));
+        card.setBorder(new CompoundBorder(
+                new RoundedBorder(BORDER, 1, 16),
+                new EmptyBorder(pad, pad, pad - 4, pad)));
+        card.setMaximumSize(new Dimension(cardW, cardH));
+        card.setPreferredSize(new Dimension(cardW, cardH));
+
+        // Scale fonts
+        float scale = cardW / 390f;
+        if (titleLabel != null)
+            titleLabel.setFont(new Font("Segoe UI", Font.BOLD, Math.max(16, (int)(22 * scale))));
+        if (subLabel != null)
+            subLabel.setFont(new Font("Segoe UI", Font.PLAIN, Math.max(10, (int)(13 * scale))));
+        if (republicLabel != null)
+            republicLabel.setFont(new Font("Segoe UI", Font.PLAIN, Math.max(8, (int)(10 * scale))));
+
+        card.revalidate();
+        card.repaint();
     }
 
     // ── Build root panel with card layout (for potential loading state) ──────
@@ -61,7 +106,7 @@ public class login extends JFrame {
 
     // ── Main login card (modern, clean layout) ───────────────────────────────
     private JPanel buildCard() {
-        JPanel card = new JPanel();
+        card = new JPanel();
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
         card.setBackground(WHITE);
         card.setBorder(new CompoundBorder(
@@ -113,22 +158,22 @@ public class login extends JFrame {
         badge.setMaximumSize(new Dimension(52, 52));
         badge.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JLabel republic = label("REPUBLIC OF THE PHILIPPINES", 10, Font.PLAIN, TEXT_SEC);
-        republic.setAlignmentX(Component.CENTER_ALIGNMENT);
+        republicLabel = label("REPUBLIC OF THE PHILIPPINES", 10, Font.PLAIN, TEXT_SEC);
+        republicLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JLabel title = label("Barangay e-Blotter", 22, Font.BOLD, TEXT_PRI);
-        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        titleLabel = label("Barangay e-Blotter", 22, Font.BOLD, TEXT_PRI);
+        titleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JLabel sub = label("Digital Blotter Management System", 13, Font.PLAIN, TEXT_SEC);
-        sub.setAlignmentX(Component.CENTER_ALIGNMENT);
+        subLabel = label("Digital Blotter Management System", 13, Font.PLAIN, TEXT_SEC);
+        subLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         p.add(badge);
         p.add(Box.createVerticalStrut(12));
-        p.add(republic);
+        p.add(republicLabel);
         p.add(Box.createVerticalStrut(4));
-        p.add(title);
+        p.add(titleLabel);
         p.add(Box.createVerticalStrut(3));
-        p.add(sub);
+        p.add(subLabel);
         return p;
     }
 
@@ -289,7 +334,7 @@ public class login extends JFrame {
         loginButton.addActionListener(e -> performLogin());
 
         p.add(loginButton, BorderLayout.CENTER);
-        p.setMaximumSize(new Dimension(320, 44));
+        p.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
         return p;
     }
 
@@ -331,7 +376,7 @@ public class login extends JFrame {
         col.setLayout(new BoxLayout(col, BoxLayout.Y_AXIS));
         col.setBackground(WHITE);
         col.setAlignmentX(Component.CENTER_ALIGNMENT);
-        col.setMaximumSize(new Dimension(320, 76));
+        col.setMaximumSize(new Dimension(Integer.MAX_VALUE, 76));
 
         JLabel lbl = label(labelText, 13, Font.BOLD, TEXT_PRI);
         lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -347,7 +392,7 @@ public class login extends JFrame {
         wrap.setBorder(new CompoundBorder(
                 new RoundedBorder(BORDER, 1, 8),
                 new EmptyBorder(0, 0, 0, 0)));
-        wrap.setMaximumSize(new Dimension(320, 44));
+        wrap.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
         wrap.setPreferredSize(new Dimension(320, 44));
         wrap.setAlignmentX(Component.LEFT_ALIGNMENT);
         return wrap;
@@ -447,30 +492,41 @@ public class login extends JFrame {
         flash("Authenticating...", true);
 
         // Run authentication in background to keep UI responsive
-        new SwingWorker<Boolean, Void>() {
+        new SwingWorker<String[], Void>() {
             @Override
-            protected Boolean doInBackground() {
+            protected String[] doInBackground() {
                 return authenticate(username, password);
             }
 
             @Override
             protected void done() {
                 try {
-                    boolean success = get();
-                    if (success) {
-                        flash("Login successful!", true);
-                        new dashboard().setVisible(true);
+                    String[] result = get();
+                    if (result != null) {
+                        String dbUsername = result[0];
+                        String dbRole = result[1];
+                        flash("Login successful! (" + dbRole + ")", true);
+                        new dashboard(dbUsername, dbRole).setVisible(true);
                         dispose();
                     } else {
                         isLoggingIn = false;  // Reset flag on failure
                         flash("Invalid username or password.", false);
                         loginButton.setEnabled(true);
-                        passwordField.setText("");
-                        passwordField.setForeground(TEXT_HINT);
-                        passwordField.setEchoChar((char) 0);
-                        passwordField.setText(P_HINT);
+
+                        // Reset password field to hint state
                         passwordVisible = false;
                         eyeButton.repaint();
+                        passwordField.setEchoChar((char) 0);
+                        passwordField.setForeground(TEXT_HINT);
+                        passwordField.setText(P_HINT);
+
+                        // Reset username field to hint state
+                        usernameField.setForeground(TEXT_HINT);
+                        usernameField.setText(U_HINT);
+
+                        // Move focus to username so both fields show hints properly
+                        // (focusLost fires on password, keeping it in hint mode)
+                        rootPanel.requestFocusInWindow();
                     }
                 } catch (InterruptedException | java.util.concurrent.ExecutionException ex) {
                     isLoggingIn = false;  // Reset flag on error
@@ -496,8 +552,8 @@ public class login extends JFrame {
         }
     }
 
-    // ── ORIGINAL AUTHENTICATION METHOD (unchanged) ───────────────────────────
-    private boolean authenticate(String username, String password) {
+    // ── AUTHENTICATION METHOD — returns {username, role} or null ──────────────
+    private String[] authenticate(String username, String password) {
         String url = "jdbc:mysql://localhost:3306/ebs";
         String user = "root";
         String pass = "";
@@ -505,19 +561,25 @@ public class login extends JFrame {
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
             try (Connection conn = DriverManager.getConnection(url, user, pass)) {
-                String query = "SELECT * FROM users WHERE username = ? AND password = ?";
+                String query = "SELECT username, role FROM users WHERE username = ? AND password = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(query)) {
                     stmt.setString(1, username);
                     stmt.setString(2, password);
 
                     try (ResultSet rs = stmt.executeQuery()) {
-                        return rs.next();
+                        if (rs.next()) {
+                            String dbUsername = rs.getString("username");
+                            String dbRole = rs.getString("role");
+                            if (dbRole == null || dbRole.isEmpty()) dbRole = "secretary";
+                            return new String[]{dbUsername, dbRole.toLowerCase()};
+                        }
+                        return null;
                     }
                 }
             }
         } catch (ClassNotFoundException | SQLException e) {
             System.err.println("Authentication error: " + e.getMessage());
-            return false;
+            return null;
         }
     }
 

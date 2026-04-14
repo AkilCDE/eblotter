@@ -1,0 +1,23 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "java",
+            "name": "E-Blotter System (mayn.java)",
+            "request": "launch",
+            "mainClass": "main.eblotterr.mayn"
+        },
+        {
+            "type": "java",
+            "name": "E-Blotter Login (login.java)",
+            "request": "launch",
+            "mainClass": "main.eblotterr.login"
+        },
+        {
+            "type": "java",
+            "name": "E-Blotter Dashboard (dashboard.java)",
+            "request": "launch",
+            "mainClass": "main.eblotterr.dashboard"
+        }
+    ]
+}
