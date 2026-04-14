@@ -540,53 +540,95 @@ public class dashboard extends JFrame {
         table.getColumnModel().getColumn(5).setCellEditor(new ButtonEditor(new JCheckBox()));
     }
 
-    class ButtonRenderer extends JButton implements TableCellRenderer {
+    class ButtonRenderer extends JPanel implements TableCellRenderer {
+        private JButton viewBtn = new JButton("View");
+        private JButton printBtn = new JButton("Print");
+        
         public ButtonRenderer() {
-            setText("View");
-            setBackground(BLUE);
-            setForeground(WHITE);
-            setFont(new Font("Segoe UI", Font.BOLD, 11));
-            setBorderPainted(false);
-            setFocusPainted(false);
-            setCursor(new Cursor(Cursor.HAND_CURSOR));
-            setBorder(new EmptyBorder(4, 12, 4, 12));
+            setOpaque(true);
+            setLayout(new FlowLayout(FlowLayout.CENTER, 5, 2));
+            
+            styleButton(viewBtn);
+            styleButton(printBtn);
+            
+            add(viewBtn);
+            add(printBtn);
+        }
+        
+        private void styleButton(JButton btn) {
+            btn.setBackground(BLUE);
+            btn.setForeground(WHITE);
+            btn.setFont(new Font("Segoe UI", Font.BOLD, 10));
+            btn.setBorderPainted(false);
+            btn.setFocusPainted(false);
+            btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            btn.setBorder(new EmptyBorder(3, 8, 3, 8));
+            btn.setEnabled(false);
         }
         
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected, boolean hasFocus, int row, int column) {
+            if (isSelected) {
+                setBackground(table.getSelectionBackground());
+            } else {
+                setBackground(row % 2 == 0 ? WHITE : new Color(248, 250, 252));
+            }
             return this;
         }
     }
 
     class ButtonEditor extends DefaultCellEditor {
-        protected JButton button;
+        private JPanel panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 5, 2));
+        private JButton viewBtn = new JButton("View");
+        private JButton printBtn = new JButton("Print");
         private int currentRow;
 
         public ButtonEditor(JCheckBox checkBox) {
             super(checkBox);
-            button = new JButton();
-            button.setOpaque(true);
-            button.addActionListener(e -> fireEditingStopped());
-            button.setBackground(BLUE);
-            button.setForeground(WHITE);
-            button.setFont(new Font("Segoe UI", Font.BOLD, 11));
-            button.setBorderPainted(false);
-            button.setFocusPainted(false);
-            button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-            button.setBorder(new EmptyBorder(4, 12, 4, 12));
+            panel.setOpaque(true);
+            panel.setBackground(WHITE);
+            
+            styleButton(viewBtn);
+            styleButton(printBtn);
+            
+            viewBtn.addActionListener(e -> {
+                viewRecord(currentRow);
+                fireEditingStopped();
+            });
+            
+            printBtn.addActionListener(e -> {
+                printRecord(currentRow);
+                fireEditingStopped();
+            });
+            
+            panel.add(viewBtn);
+            panel.add(printBtn);
+        }
+        
+        private void styleButton(JButton btn) {
+            btn.setBackground(BLUE);
+            btn.setForeground(WHITE);
+            btn.setFont(new Font("Segoe UI", Font.BOLD, 10));
+            btn.setBorderPainted(false);
+            btn.setFocusPainted(false);
+            btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+            btn.setBorder(new EmptyBorder(3, 8, 3, 8));
         }
 
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row, int column) {
             currentRow = row;
-            button.setText("View");
-            return button;
+            if (isSelected) {
+                panel.setBackground(table.getSelectionBackground());
+            } else {
+                panel.setBackground(row % 2 == 0 ? WHITE : new Color(248, 250, 252));
+            }
+            return panel;
         }
 
         @Override
         public Object getCellEditorValue() {
-            viewRecord(currentRow);
-            return "View";
+            return "View|Print";
         }
     }
 
