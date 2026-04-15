@@ -120,9 +120,30 @@ public class HistoryFrame {
         scrollPane.getViewport().setBackground(WHITE);
         scrollPane.setBackground(WHITE);
 
-        JPanel tableContainer = new JPanel(new BorderLayout());
-        tableContainer.setBackground(WHITE);
-        tableContainer.setBorder(new RoundedBorder(BORDER_CLR, 1, 14));
+        JPanel tableContainer = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // Enhanced shadow
+                g2.setColor(new Color(0, 0, 0, 20));
+                g2.fillRoundRect(4, 5, getWidth()-6, getHeight()-6, 16, 16);
+                
+                // Card background
+                g2.setColor(WHITE);
+                g2.fillRoundRect(0, 0, getWidth()-4, getHeight()-4, 14, 14);
+                
+                // Subtle border
+                g2.setColor(new Color(220, 223, 228));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth()-5, getHeight()-5, 14, 14);
+                
+                g2.dispose();
+            }
+        };
+        tableContainer.setOpaque(false);
+        tableContainer.setBorder(new EmptyBorder(4, 4, 4, 4));
         tableContainer.add(scrollPane, BorderLayout.CENTER);
 
         // ── Bottom Panel with Record Count ────────────────────────────────────
@@ -317,9 +338,32 @@ public class HistoryFrame {
     private JPanel buildFilterBar(JFrame historyFrame, JTable historyTable,
                                   TableRowSorter<DefaultTableModel> sorter,
                                   DefaultTableModel historyModel) {
-        JPanel filterPanel = new JPanel(new BorderLayout(12, 0));
-        filterPanel.setOpaque(false);
-        filterPanel.setBorder(new EmptyBorder(12, 24, 12, 24));
+        JPanel filterCard = new JPanel(new BorderLayout(12, 0)) {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // Card shadow
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(3, 4, getWidth()-4, getHeight()-4, 12, 12);
+                
+                // Card background
+                g2.setColor(WHITE);
+                g2.fillRoundRect(0, 0, getWidth()-4, getHeight()-4, 10, 10);
+                
+                // Subtle border
+                g2.setColor(new Color(220, 223, 228));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth()-5, getHeight()-5, 10, 10);
+                
+                g2.dispose();
+            }
+        };
+        filterCard.setOpaque(false);
+        filterCard.setBorder(new EmptyBorder(12, 20, 12, 20));
+        filterCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
+        filterCard.setPreferredSize(new Dimension(0, 70));
 
         // Left side: Status filter + Time period filter
         JPanel filterLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
@@ -331,8 +375,9 @@ public class HistoryFrame {
 
         JComboBox<String> statusFilter = new JComboBox<>(new String[]{"All Records", "Pending", "Resolved"});
         statusFilter.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        statusFilter.setPreferredSize(new Dimension(130, 34));
+        statusFilter.setPreferredSize(new Dimension(130, 36));
         statusFilter.setBackground(WHITE);
+        statusFilter.setBorder(new RoundedBorder(BORDER_CLR, 1, 6));
 
         JLabel timeLabel = new JLabel("  Period:");
         timeLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -342,8 +387,9 @@ public class HistoryFrame {
             "All Time", "Today", "Last 3 Days", "Last 7 Days", "Last 30 Days"
         });
         timeFilter.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        timeFilter.setPreferredSize(new Dimension(130, 34));
+        timeFilter.setPreferredSize(new Dimension(130, 36));
         timeFilter.setBackground(WHITE);
+        timeFilter.setBorder(new RoundedBorder(BORDER_CLR, 1, 6));
 
         filterLeft.add(filterLabel);
         filterLeft.add(statusFilter);
@@ -388,15 +434,15 @@ public class HistoryFrame {
         searchBar.add(searchIcon, BorderLayout.WEST);
         searchBar.add(historySearchField, BorderLayout.CENTER);
 
-        JButton exportBtn = createStyledButton("Export", STAT_GREEN, new Color(40, 150, 100), WHITE);
-        exportBtn.setPreferredSize(new Dimension(90, 36));
+        JButton exportBtn = createCardButton("Export", "download", STAT_GREEN, new Color(40, 150, 100), WHITE);
+        exportBtn.setPreferredSize(new Dimension(100, 36));
         exportBtn.addActionListener(e -> exportHistoryData(historyFrame));
 
         filterRight.add(searchBar);
         filterRight.add(exportBtn);
 
-        filterPanel.add(filterLeft, BorderLayout.WEST);
-        filterPanel.add(filterRight, BorderLayout.EAST);
+        filterCard.add(filterLeft, BorderLayout.WEST);
+        filterCard.add(filterRight, BorderLayout.EAST);
 
         // ── Combined filter logic ─────────────────────────────────────────────
         Runnable applyFilters = () -> {
@@ -465,7 +511,7 @@ public class HistoryFrame {
             }
         });
 
-        return filterPanel;
+        return filterCard;
     }
 
     // ── Create history table ──────────────────────────────────────────────
@@ -634,6 +680,69 @@ public class HistoryFrame {
     }
 
     // ── Styled button factory ──────────────────────────────────────────────
+
+    private JButton createCardButton(String text, String iconName, Color bg, Color hover, Color fg) {
+        JButton btn = new JButton(text) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                int w = getWidth();
+                int h = getHeight();
+                
+                // Card shadow effect
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(2, 3, w - 2, h - 2, 10, 10);
+                
+                // Button background
+                if (getModel().isPressed()) {
+                    g2.setColor(hover.darker());
+                } else if (getModel().isRollover()) {
+                    g2.setColor(hover);
+                } else {
+                    g2.setColor(bg);
+                }
+                g2.fillRoundRect(0, 0, w - 2, h - 2, 10, 10);
+                
+                // Icon
+                g2.setColor(fg);
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int iconX = 14;
+                int iconY = h / 2;
+                drawCardIcon(g2, iconName, iconX, iconY);
+                
+                // Text
+                g2.setColor(fg);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                FontMetrics fm = g2.getFontMetrics();
+                int textX = 38;
+                int textY = (h + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(getText(), textX, textY);
+                
+                g2.dispose();
+            }
+            
+            private void drawCardIcon(Graphics2D g2, String icon, int x, int y) {
+                switch (icon) {
+                    case "download":
+                        g2.drawLine(x, y - 6, x, y + 2);
+                        g2.drawLine(x - 4, y - 2, x, y + 2);
+                        g2.drawLine(x + 4, y - 2, x, y + 2);
+                        g2.drawLine(x - 6, y + 4, x + 6, y + 4);
+                        break;
+                }
+            }
+        };
+        
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btn.setForeground(fg);
+        btn.setContentAreaFilled(false);
+        btn.setBorderPainted(false);
+        btn.setFocusPainted(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setPreferredSize(new Dimension(100, 36));
+        return btn;
+    }
 
     private JButton createStyledButton(String text, Color bg, Color hover, Color fg) {
         JButton b = new JButton(text) {

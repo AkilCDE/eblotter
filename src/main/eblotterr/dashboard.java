@@ -104,27 +104,72 @@ public class dashboard extends JFrame {
     private void loadBlotterData() {
         blotterData.clear();
         try (Connection conn = getConnection()) {
-            String sql = "SELECT blotter_id, complainant, Respondent, date, status, " +
-                         "Cmplnt_address, complt_type, description " +
-                         "FROM blotter ORDER BY date DESC";
+            String sql = "SELECT b.blotter_id, " +
+                         "c.complainant_id, c.first_name AS c_fname, c.middle_name AS c_mname, " +
+                         "c.last_name AS c_lname, c.suffix AS c_suffix, c.mobile_number AS c_mobile, c.purok AS c_purok, " +
+                         "r.respondent_id, r.first_name AS r_fname, r.middle_name AS r_mname, " +
+                         "r.last_name AS r_lname, r.suffix AS r_suffix, " +
+                         "b.date, b.status, b.complt_type, b.description " +
+                         "FROM blotter b " +
+                         "JOIN complainant c ON b.complainant_id = c.complainant_id " +
+                         "JOIN respondent r ON b.respondent_id = r.respondent_id " +
+                         "ORDER BY b.date DESC";
             try (Statement stmt = conn.createStatement();
                  ResultSet rs   = stmt.executeQuery(sql)) {
                 while (rs.next()) {
+                    String cFname = rs.getString("c_fname") != null ? rs.getString("c_fname") : "";
+                    String cMname = rs.getString("c_mname") != null ? rs.getString("c_mname") : "";
+                    String cLname = rs.getString("c_lname") != null ? rs.getString("c_lname") : "";
+                    String cSuffix = rs.getString("c_suffix") != null ? rs.getString("c_suffix") : "";
+                    String rFname = rs.getString("r_fname") != null ? rs.getString("r_fname") : "";
+                    String rMname = rs.getString("r_mname") != null ? rs.getString("r_mname") : "";
+                    String rLname = rs.getString("r_lname") != null ? rs.getString("r_lname") : "";
+                    String rSuffix = rs.getString("r_suffix") != null ? rs.getString("r_suffix") : "";
+
                     blotterData.add(new Object[]{
-                        rs.getInt("blotter_id"),
-                        rs.getString("complainant"),
-                        rs.getString("Respondent"),
-                        rs.getDate("date") != null ? rs.getDate("date").toString() : "N/A",
-                        rs.getString("status"),
-                        rs.getString("Cmplnt_address"),
-                        rs.getString("complt_type"),
-                        rs.getString("description")
+                        rs.getInt("blotter_id"),                              // [0]
+                        buildFullName(cFname, cMname, cLname, cSuffix),       // [1] complainant display name
+                        buildFullName(rFname, rMname, rLname, rSuffix),       // [2] respondent display name
+                        rs.getDate("date") != null ? rs.getDate("date").toString() : "N/A", // [3]
+                        rs.getString("status"),                               // [4]
+                        rs.getString("c_purok"),                              // [5] complainant purok
+                        rs.getString("complt_type"),                          // [6]
+                        rs.getString("description"),                          // [7]
+                        rs.getInt("complainant_id"),                          // [8]
+                        cFname,                                               // [9]
+                        cMname,                                               // [10]
+                        cLname,                                               // [11]
+                        cSuffix,                                              // [12]
+                        rs.getInt("respondent_id"),                           // [13]
+                        rFname,                                               // [14]
+                        rMname,                                               // [15]
+                        rLname,                                               // [16]
+                        rSuffix,                                              // [17]
+                        rs.getString("c_mobile")                              // [18] complainant mobile
                     });
                 }
             }
         } catch (ClassNotFoundException | SQLException e) {
             System.err.println("Error loading blotter data: " + e.getMessage());
         }
+    }
+
+    private String buildFullName(String first, String middle, String last, String suffix) {
+        StringBuilder sb = new StringBuilder();
+        if (first != null && !first.isEmpty()) sb.append(first);
+        if (middle != null && !middle.isEmpty()) {
+            if (sb.length() > 0) sb.append(" ");
+            sb.append(middle);
+        }
+        if (last != null && !last.isEmpty()) {
+            if (sb.length() > 0) sb.append(" ");
+            sb.append(last);
+        }
+        if (suffix != null && !suffix.isEmpty()) {
+            if (sb.length() > 0) sb.append(" ");
+            sb.append(suffix);
+        }
+        return sb.length() > 0 ? sb.toString() : "N/A";
     }
 
     private void updateStatCards() {
@@ -165,7 +210,13 @@ public class dashboard extends JFrame {
         JPanel root = new JPanel(new BorderLayout(0, 0));
         root.setBackground(BG);
         root.add(buildHeader(), BorderLayout.NORTH);
-        root.add(buildBody(),   BorderLayout.CENTER);
+        
+        JPanel mainContent = new JPanel(new BorderLayout(0, 0));
+        mainContent.setBackground(BG);
+        mainContent.add(buildSidebar(), BorderLayout.WEST);
+        mainContent.add(buildBody(), BorderLayout.CENTER);
+        
+        root.add(mainContent, BorderLayout.CENTER);
         return root;
     }
 
@@ -290,6 +341,162 @@ public class dashboard extends JFrame {
     private String cap(String s) {
         if (s == null || s.isEmpty()) return s;
         return s.substring(0, 1).toUpperCase() + s.substring(1);
+    }
+
+    // ── Sidebar ─────────────────────────────────────────────────────────────
+
+    private JPanel buildSidebar() {
+        JPanel sidebar = new JPanel();
+        sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
+        sidebar.setBackground(WHITE);
+        sidebar.setBorder(new CompoundBorder(
+            new MatteBorder(0, 0, 0, 1, BORDER_CLR),
+            new EmptyBorder(20, 16, 20, 16)));
+        sidebar.setPreferredSize(new Dimension(220, 0));
+
+        // Sidebar title
+        JLabel sidebarTitle = new JLabel("NAVIGATION");
+        sidebarTitle.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        sidebarTitle.setForeground(TEXT_SEC);
+        sidebarTitle.setBorder(new EmptyBorder(0, 0, 16, 0));
+        sidebar.add(sidebarTitle);
+        sidebar.add(Box.createVerticalStrut(8));
+
+        // Navigation buttons
+        sidebar.add(createSidebarButton("Profile", "user", e -> showProfile()));
+        sidebar.add(Box.createVerticalStrut(8));
+        sidebar.add(createSidebarButton("Home", "home", e -> {
+            // Already on home/dashboard
+        }));
+        sidebar.add(Box.createVerticalStrut(8));
+        sidebar.add(createSidebarButton("Add New Blotter", "plus", e -> showAddDialog()));
+        sidebar.add(Box.createVerticalStrut(8));
+        sidebar.add(createSidebarButton("Blotters", "list", e -> {
+            // Already showing blotters
+        }));
+        sidebar.add(Box.createVerticalStrut(8));
+        sidebar.add(createSidebarButton("Blotter History", "clock", e -> showHistoryFrame()));
+        sidebar.add(Box.createVerticalStrut(8));
+        sidebar.add(createSidebarButton("Users", "users", e -> showUsers()));
+        sidebar.add(Box.createVerticalStrut(8));
+        sidebar.add(createSidebarButton("Settings", "settings", e -> showSettings()));
+
+        sidebar.add(Box.createVerticalGlue());
+
+        return sidebar;
+    }
+
+    private JButton createSidebarButton(String text, String iconName, ActionListener listener) {
+        JButton button = new JButton(text) {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                int w = getWidth();
+                int h = getHeight();
+
+                // Background
+                if (getModel().isPressed()) {
+                    g2.setColor(new Color(45, 118, 200, 30));
+                } else if (getModel().isRollover()) {
+                    g2.setColor(new Color(45, 118, 200, 15));
+                } else {
+                    g2.setColor(WHITE);
+                }
+                g2.fillRoundRect(0, 0, w, h, 10, 10);
+
+                // Icon
+                g2.setColor(BLUE);
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int iconX = 12;
+                int iconY = h / 2;
+                drawIcon(g2, iconName, iconX, iconY);
+
+                // Text
+                g2.setColor(TEXT_PRI);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                FontMetrics fm = g2.getFontMetrics();
+                int textX = 40;
+                int textY = (h + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(getText(), textX, textY);
+
+                g2.dispose();
+            }
+
+            private void drawIcon(Graphics2D g2, String icon, int x, int y) {
+                switch (icon) {
+                    case "user":
+                        g2.drawOval(x, y - 12, 12, 12);
+                        g2.drawArc(x - 3, y, 18, 10, 0, 180);
+                        break;
+                    case "home":
+                        g2.drawLine(x, y + 5, x + 6, y - 5);
+                        g2.drawLine(x + 6, y - 5, x + 12, y + 5);
+                        g2.drawRect(x + 1, y + 5, 10, 10);
+                        break;
+                    case "plus":
+                        g2.drawLine(x + 6, y - 6, x + 6, y + 6);
+                        g2.drawLine(x, y, x + 12, y);
+                        break;
+                    case "list":
+                        g2.drawLine(x, y - 5, x + 12, y - 5);
+                        g2.drawLine(x, y, x + 12, y);
+                        g2.drawLine(x, y + 5, x + 12, y + 5);
+                        break;
+                    case "clock":
+                        g2.drawOval(x, y - 8, 14, 14);
+                        g2.drawLine(x + 7, y - 8, x + 7, y - 3);
+                        g2.drawLine(x + 7, y, x + 11, y);
+                        break;
+                    case "users":
+                        g2.drawOval(x, y - 10, 8, 8);
+                        g2.drawArc(x - 2, y - 2, 12, 6, 0, 180);
+                        g2.drawOval(x + 8, y - 6, 6, 6);
+                        g2.drawArc(x + 6, y, 8, 5, 0, 180);
+                        break;
+                    case "settings":
+                        g2.drawOval(x + 1, y - 7, 10, 10);
+                        g2.drawLine(x + 6, y - 12, x + 6, y - 7);
+                        g2.drawLine(x + 6, y + 3, x + 6, y + 8);
+                        g2.drawLine(x - 2, y - 2, x + 1, y - 2);
+                        g2.drawLine(x + 11, y - 2, x + 14, y - 2);
+                        break;
+                }
+            }
+        };
+
+        button.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        button.setForeground(TEXT_PRI);
+        button.setHorizontalAlignment(SwingConstants.LEFT);
+        button.setBorderPainted(false);
+        button.setFocusPainted(false);
+        button.setContentAreaFilled(false);
+        button.setOpaque(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+        button.setPreferredSize(new Dimension(180, 44));
+        button.addActionListener(listener);
+
+        return button;
+    }
+
+    private void showProfile() {
+        JOptionPane.showMessageDialog(this,
+            "Profile: " + currentUsername + "\nRole: " + cap(currentRole),
+            "User Profile", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void showUsers() {
+        JOptionPane.showMessageDialog(this,
+            "User management feature coming soon.",
+            "Users", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void showSettings() {
+        JOptionPane.showMessageDialog(this,
+            "Settings feature coming soon.",
+            "Settings", JOptionPane.INFORMATION_MESSAGE);
     }
 
     private void logout() {

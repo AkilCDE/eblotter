@@ -33,10 +33,21 @@ public class ViewBlotterDialog {
     private final Runnable onDataChanged;
     private final String userRole; // "secretary", "captain", or "kagawad"
 
-    // ── Editable field references ─────────────────────────────────────────
-    private JTextField tfComplainant;
-    private JTextField tfRespondent;
-    private JTextField tfAddress;
+    // ── Editable field references — Complainant ───────────────────────────
+    private JTextField tfCFirstName;
+    private JTextField tfCMiddleName;
+    private JTextField tfCLastName;
+    private JTextField tfCSuffix;
+    private JTextField tfMobileNumber;
+    private JTextField tfPurok;
+
+    // ── Editable field references — Respondent ────────────────────────────
+    private JTextField tfRFirstName;
+    private JTextField tfRMiddleName;
+    private JTextField tfRLastName;
+    private JTextField tfRSuffix;
+
+    // ── Editable field references — Incident ──────────────────────────────
     private JTextField tfCompType;
     private JTextArea taDescription;
     private boolean editMode = false;
@@ -98,18 +109,29 @@ public class ViewBlotterDialog {
 
         Object[] data = blotterData.get(row);
         Object blotterNum  = data[0];
-        Object complainant = data[1];
-        Object respondent  = data[2];
+        // data[1] = complainant full name (display)
+        // data[2] = respondent full name (display)
         Object date        = data[3];
         Object status      = data[4];
-        Object address     = data[5];
+        Object purok       = data[5];
         Object compType    = data[6];
         Object description = data[7];
+        // data[8]  = complainant_id
+        // data[9]  = c_first_name
+        // data[10] = c_middle_name
+        // data[11] = c_last_name
+        // data[12] = c_suffix
+        // data[13] = respondent_id
+        // data[14] = r_first_name
+        // data[15] = r_middle_name
+        // data[16] = r_last_name
+        // data[17] = r_suffix
+        // data[18] = c_mobile
 
         boolean isPending = "pending".equalsIgnoreCase(status != null ? status.toString() : "");
 
         JDialog detailDialog = new JDialog(parentFrame, "Blotter Details - #" + blotterNum, true);
-        detailDialog.setSize(750, 700);
+        detailDialog.setSize(750, 750);
         detailDialog.setMinimumSize(new Dimension(480, 500));
         detailDialog.setLocationRelativeTo(parentFrame);
         detailDialog.getContentPane().setBackground(new Color(0xEAF1FB));
@@ -140,7 +162,7 @@ public class ViewBlotterDialog {
         body.add(Box.createVerticalStrut(14));
 
         // Parties Involved Card (editable fields)
-        body.add(buildDetailPartiesCard(complainant, respondent, address, date));
+        body.add(buildDetailPartiesCard(data));
         body.add(Box.createVerticalStrut(16));
 
         // Incident Details Card (editable fields)
@@ -167,34 +189,17 @@ public class ViewBlotterDialog {
 
     private void setFieldsEditable(boolean editable) {
         editMode = editable;
-        if (tfComplainant != null) {
-            tfComplainant.setEditable(editable);
-            tfComplainant.setBackground(editable ? EDIT_BG : WHITE);
-            tfComplainant.setBorder(BorderFactory.createCompoundBorder(
-                new RoundedBorder(editable ? EDIT_BORDER : new Color(0xC8D8EC), 1, 8),
-                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
-        }
-        if (tfRespondent != null) {
-            tfRespondent.setEditable(editable);
-            tfRespondent.setBackground(editable ? EDIT_BG : new Color(0xFFF0EE));
-            tfRespondent.setBorder(BorderFactory.createCompoundBorder(
-                new RoundedBorder(editable ? EDIT_BORDER : new Color(0xF5C0BB), 1, 8),
-                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
-        }
-        if (tfAddress != null) {
-            tfAddress.setEditable(editable);
-            tfAddress.setBackground(editable ? EDIT_BG : WHITE);
-            tfAddress.setBorder(BorderFactory.createCompoundBorder(
-                new RoundedBorder(editable ? EDIT_BORDER : new Color(0xC8D8EC), 1, 8),
-                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
-        }
-        if (tfCompType != null) {
-            tfCompType.setEditable(editable);
-            tfCompType.setBackground(editable ? EDIT_BG : WHITE);
-            tfCompType.setBorder(BorderFactory.createCompoundBorder(
-                new RoundedBorder(editable ? EDIT_BORDER : new Color(0xC8D8EC), 1, 8),
-                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
-        }
+        setFieldEditStyle(tfCFirstName, editable, false);
+        setFieldEditStyle(tfCMiddleName, editable, false);
+        setFieldEditStyle(tfCLastName, editable, false);
+        setFieldEditStyle(tfCSuffix, editable, false);
+        setFieldEditStyle(tfRFirstName, editable, true);
+        setFieldEditStyle(tfRMiddleName, editable, true);
+        setFieldEditStyle(tfRLastName, editable, true);
+        setFieldEditStyle(tfRSuffix, editable, true);
+        setFieldEditStyle(tfMobileNumber, editable, false);
+        setFieldEditStyle(tfPurok, editable, false);
+        setFieldEditStyle(tfCompType, editable, false);
         if (taDescription != null) {
             taDescription.setEditable(editable);
             taDescription.setBackground(editable ? EDIT_BG : WHITE);
@@ -204,32 +209,85 @@ public class ViewBlotterDialog {
         }
     }
 
+    private void setFieldEditStyle(JTextField tf, boolean editable, boolean isRespondent) {
+        if (tf == null) return;
+        tf.setEditable(editable);
+        Color defaultBg = isRespondent ? new Color(0xFFF0EE) : WHITE;
+        Color defaultBorder = isRespondent ? new Color(0xF5C0BB) : new Color(0xC8D8EC);
+        tf.setBackground(editable ? EDIT_BG : defaultBg);
+        tf.setBorder(BorderFactory.createCompoundBorder(
+            new RoundedBorder(editable ? EDIT_BORDER : defaultBorder, 1, 8),
+            BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+    }
+
     // ── Save edited data ──────────────────────────────────────────────────
 
     private void saveEdits(JDialog dialog, int row, Object blotterNum) {
-        String newComplainant = tfComplainant.getText().trim();
-        String newRespondent  = tfRespondent.getText().trim();
-        String newAddress     = tfAddress.getText().trim();
-        String newCompType    = tfCompType.getText().trim();
+        String cFirst = tfCFirstName.getText().trim();
+        String cMiddle = tfCMiddleName.getText().trim();
+        String cLast = tfCLastName.getText().trim();
+        String cSuffix = tfCSuffix.getText().trim();
+        String rFirst = tfRFirstName.getText().trim();
+        String rMiddle = tfRMiddleName.getText().trim();
+        String rLast = tfRLastName.getText().trim();
+        String rSuffix = tfRSuffix.getText().trim();
+        String newMobileNumber = tfMobileNumber.getText().trim();
+        String newPurok = tfPurok.getText().trim();
+        String newCompType = tfCompType.getText().trim();
         String newDescription = taDescription.getText().trim();
 
-        // Validation
-        if (newComplainant.isEmpty()) {
-            JOptionPane.showMessageDialog(dialog, "Complainant name cannot be empty.",
+        // Validation — suffix is optional for both
+        if (cFirst.isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Complainant's first name cannot be empty.",
                 "Validation Error", JOptionPane.ERROR_MESSAGE);
-            tfComplainant.requestFocus();
+            tfCFirstName.requestFocus();
             return;
         }
-        if (newRespondent.isEmpty()) {
-            JOptionPane.showMessageDialog(dialog, "Respondent name cannot be empty.",
+        if (cMiddle.isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Complainant's middle name cannot be empty.",
                 "Validation Error", JOptionPane.ERROR_MESSAGE);
-            tfRespondent.requestFocus();
+            tfCMiddleName.requestFocus();
             return;
         }
-        if (newAddress.isEmpty()) {
-            JOptionPane.showMessageDialog(dialog, "Address cannot be empty.",
+        if (cLast.isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Complainant's last name cannot be empty.",
                 "Validation Error", JOptionPane.ERROR_MESSAGE);
-            tfAddress.requestFocus();
+            tfCLastName.requestFocus();
+            return;
+        }
+        // cSuffix is OPTIONAL
+
+        if (rFirst.isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Respondent's first name cannot be empty.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfRFirstName.requestFocus();
+            return;
+        }
+        if (rMiddle.isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Respondent's middle name cannot be empty.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfRMiddleName.requestFocus();
+            return;
+        }
+        if (rLast.isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Respondent's last name cannot be empty.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfRLastName.requestFocus();
+            return;
+        }
+        // rSuffix is OPTIONAL
+
+        if (newMobileNumber.isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Mobile number cannot be empty.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfMobileNumber.requestFocus();
+            return;
+        }
+
+        if (newPurok.isEmpty()) {
+            JOptionPane.showMessageDialog(dialog, "Purok cannot be empty.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfPurok.requestFocus();
             return;
         }
 
@@ -239,21 +297,64 @@ public class ViewBlotterDialog {
             "Confirm Save", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
         if (confirm != JOptionPane.YES_OPTION) return;
 
+        // Get foreign key IDs from blotterData
+        Object[] data = blotterData.get(row);
+        final int complainantId = Integer.parseInt(data[8].toString());
+        final int respondentId = Integer.parseInt(data[13].toString());
+
+        // Capture final values for SwingWorker
+        final String fCFirst = cFirst, fCMiddle = cMiddle, fCLast = cLast, fCSuffix = cSuffix;
+        final String fRFirst = rFirst, fRMiddle = rMiddle, fRLast = rLast, fRSuffix = rSuffix;
+        final String fMobileNumber = newMobileNumber, fPurok = newPurok, fCompType = newCompType, fDescription = newDescription;
+
         new SwingWorker<Boolean, Void>() {
             @Override
             protected Boolean doInBackground() throws Exception {
                 try (Connection conn = connectionProvider.getConnection()) {
-                    String update = "UPDATE blotter SET complainant = ?, Respondent = ?, " +
-                                  "Cmplnt_address = ?, complt_type = ?, description = ? " +
-                                  "WHERE blotter_id = ?";
-                    try (PreparedStatement pstmt = conn.prepareStatement(update)) {
-                        pstmt.setString(1, newComplainant);
-                        pstmt.setString(2, newRespondent);
-                        pstmt.setString(3, newAddress);
-                        pstmt.setString(4, newCompType);
-                        pstmt.setString(5, newDescription);
-                        pstmt.setInt(6, Integer.parseInt(blotterNum.toString()));
-                        pstmt.executeUpdate();
+                    conn.setAutoCommit(false);
+                    try {
+                        // Update complainant table
+                        String updateComplainant = "UPDATE complainant SET first_name = ?, " +
+                            "middle_name = ?, last_name = ?, suffix = ?, mobile_number = ?, purok = ? " +
+                            "WHERE complainant_id = ?";
+                        try (PreparedStatement pstmt = conn.prepareStatement(updateComplainant)) {
+                            pstmt.setString(1, fCFirst);
+                            pstmt.setString(2, fCMiddle);
+                            pstmt.setString(3, fCLast);
+                            pstmt.setString(4, fCSuffix.isEmpty() ? null : fCSuffix);
+                            pstmt.setString(5, fMobileNumber);
+                            pstmt.setString(6, fPurok);
+                            pstmt.setInt(7, complainantId);
+                            pstmt.executeUpdate();
+                        }
+
+                        // Update respondent table
+                        String updateRespondent = "UPDATE respondent SET first_name = ?, " +
+                            "middle_name = ?, last_name = ?, suffix = ? " +
+                            "WHERE respondent_id = ?";
+                        try (PreparedStatement pstmt = conn.prepareStatement(updateRespondent)) {
+                            pstmt.setString(1, fRFirst);
+                            pstmt.setString(2, fRMiddle);
+                            pstmt.setString(3, fRLast);
+                            pstmt.setString(4, fRSuffix.isEmpty() ? null : fRSuffix);
+                            pstmt.setInt(5, respondentId);
+                            pstmt.executeUpdate();
+                        }
+
+                        // Update blotter table (complaint type and description only)
+                        String updateBlotter = "UPDATE blotter SET complt_type = ?, description = ? " +
+                            "WHERE blotter_id = ?";
+                        try (PreparedStatement pstmt = conn.prepareStatement(updateBlotter)) {
+                            pstmt.setString(1, fCompType);
+                            pstmt.setString(2, fDescription);
+                            pstmt.setInt(3, Integer.parseInt(blotterNum.toString()));
+                            pstmt.executeUpdate();
+                        }
+
+                        conn.commit();
+                    } catch (Exception e) {
+                        conn.rollback();
+                        throw e;
                     }
                 }
                 return true;
@@ -364,69 +465,94 @@ public class ViewBlotterDialog {
         return bar;
     }
 
-    private JPanel buildDetailPartiesCard(Object complainant, Object respondent, Object address, Object date) {
+    private JPanel buildDetailPartiesCard(Object[] data) {
         JPanel card = createDetailCard();
 
-        JLabel sectionLabel = createDetailSectionHeader("PARTIES INVOLVED");
+        // ── Complainant Section ──────────────────────────────────────────
+        JLabel complainantLabel = createDetailSectionHeader("COMPLAINANT INFORMATION");
 
-        // Row 1: Complainant Name | Respondent Name
-        JPanel row1 = new JPanel(new GridLayout(1, 2, 14, 0));
-        row1.setOpaque(false);
+        JPanel cRow1 = new JPanel(new GridLayout(1, 2, 14, 0));
+        cRow1.setOpaque(false);
 
-        JPanel complainantPanel = new JPanel();
-        complainantPanel.setOpaque(false);
-        complainantPanel.setLayout(new BoxLayout(complainantPanel, BoxLayout.Y_AXIS));
-        JLabel lblComplainant = new JLabel("Complainant's Full Name");
-        lblComplainant.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        lblComplainant.setForeground(new Color(0x2C4A6E));
-        lblComplainant.setAlignmentX(Component.LEFT_ALIGNMENT);
-        tfComplainant = new JTextField(complainant != null ? complainant.toString() : "N/A");
-        styleDetailTextField(tfComplainant, false);
-        complainantPanel.add(lblComplainant);
-        complainantPanel.add(Box.createVerticalStrut(4));
-        complainantPanel.add(tfComplainant);
+        tfCFirstName = new JTextField(data[9] != null ? data[9].toString() : "");
+        styleDetailTextField(tfCFirstName, false);
+        tfCMiddleName = new JTextField(data[10] != null ? data[10].toString() : "");
+        styleDetailTextField(tfCMiddleName, false);
 
-        JPanel respondentPanel = new JPanel();
-        respondentPanel.setOpaque(false);
-        respondentPanel.setLayout(new BoxLayout(respondentPanel, BoxLayout.Y_AXIS));
-        JLabel lblRespondent = new JLabel("Respondent's Full Name");
-        lblRespondent.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        lblRespondent.setForeground(new Color(0x2C4A6E));
-        lblRespondent.setAlignmentX(Component.LEFT_ALIGNMENT);
-        tfRespondent = new JTextField(respondent != null ? respondent.toString() : "N/A");
-        styleDetailTextField(tfRespondent, true);
-        respondentPanel.add(lblRespondent);
-        respondentPanel.add(Box.createVerticalStrut(4));
-        respondentPanel.add(tfRespondent);
+        cRow1.add(createLabeledEditableField("First Name", tfCFirstName));
+        cRow1.add(createLabeledEditableField("Middle Name", tfCMiddleName));
 
-        row1.add(complainantPanel);
-        row1.add(respondentPanel);
+        JPanel cRow2 = new JPanel(new GridLayout(1, 2, 14, 0));
+        cRow2.setOpaque(false);
 
-        // Row 2: Complainant's Address | Date of Incident
-        JPanel row2 = new JPanel(new GridLayout(1, 2, 14, 0));
-        row2.setOpaque(false);
+        tfCLastName = new JTextField(data[11] != null ? data[11].toString() : "");
+        styleDetailTextField(tfCLastName, false);
+        tfCSuffix = new JTextField(data[12] != null ? data[12].toString() : "");
+        styleDetailTextField(tfCSuffix, false);
 
-        JPanel addressPanel = new JPanel();
-        addressPanel.setOpaque(false);
-        addressPanel.setLayout(new BoxLayout(addressPanel, BoxLayout.Y_AXIS));
-        JLabel lblAddress = new JLabel("Complainant's Address");
-        lblAddress.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-        lblAddress.setForeground(new Color(0x2C4A6E));
-        lblAddress.setAlignmentX(Component.LEFT_ALIGNMENT);
-        tfAddress = new JTextField(address != null ? address.toString() : "N/A");
-        styleDetailTextField(tfAddress, false);
-        addressPanel.add(lblAddress);
-        addressPanel.add(Box.createVerticalStrut(4));
-        addressPanel.add(tfAddress);
+        cRow2.add(createLabeledEditableField("Last Name", tfCLastName));
+        cRow2.add(createLabeledEditableField("Suffix (Optional)", tfCSuffix));
 
-        row2.add(addressPanel);
-        row2.add(createDetailField("Date of Incident", date != null ? date.toString() : "N/A", false));
+        // Mobile Number & Purok
+        JPanel cRow3 = new JPanel(new GridLayout(1, 2, 14, 0));
+        cRow3.setOpaque(false);
 
-        card.add(sectionLabel);
+        tfMobileNumber = new JTextField(data.length > 18 && data[18] != null ? data[18].toString() : "");
+        styleDetailTextField(tfMobileNumber, false);
+        tfPurok = new JTextField(data[5] != null ? data[5].toString() : "");
+        styleDetailTextField(tfPurok, false);
+
+        cRow3.add(createLabeledEditableField("Mobile Number", tfMobileNumber));
+        cRow3.add(createLabeledEditableField("Purok", tfPurok));
+
+        // ── Respondent Section ───────────────────────────────────────────
+        JLabel respondentLabel = createDetailSectionHeader("RESPONDENT INFORMATION");
+
+        JPanel rRow1 = new JPanel(new GridLayout(1, 2, 14, 0));
+        rRow1.setOpaque(false);
+
+        tfRFirstName = new JTextField(data[14] != null ? data[14].toString() : "");
+        styleDetailTextField(tfRFirstName, true);
+        tfRMiddleName = new JTextField(data[15] != null ? data[15].toString() : "");
+        styleDetailTextField(tfRMiddleName, true);
+
+        rRow1.add(createLabeledEditableField("First Name", tfRFirstName));
+        rRow1.add(createLabeledEditableField("Middle Name", tfRMiddleName));
+
+        JPanel rRow2 = new JPanel(new GridLayout(1, 2, 14, 0));
+        rRow2.setOpaque(false);
+
+        tfRLastName = new JTextField(data[16] != null ? data[16].toString() : "");
+        styleDetailTextField(tfRLastName, true);
+        tfRSuffix = new JTextField(data[17] != null ? data[17].toString() : "");
+        styleDetailTextField(tfRSuffix, true);
+
+        rRow2.add(createLabeledEditableField("Last Name", tfRLastName));
+        rRow2.add(createLabeledEditableField("Suffix (Optional)", tfRSuffix));
+
+        // Date row
+        JPanel dateRow = new JPanel(new GridLayout(1, 2, 14, 0));
+        dateRow.setOpaque(false);
+        dateRow.add(createDetailField("Date of Incident",
+            data[3] != null ? data[3].toString() : "N/A", false));
+        dateRow.add(new JPanel()); // Empty spacer for formatting
+
+        // ── Assemble Card ────────────────────────────────────────────────
+        card.add(complainantLabel);
+        card.add(Box.createVerticalStrut(10));
+        card.add(cRow1);
+        card.add(Box.createVerticalStrut(10));
+        card.add(cRow2);
+        card.add(Box.createVerticalStrut(10));
+        card.add(cRow3);
+        card.add(Box.createVerticalStrut(16));
+        card.add(respondentLabel);
+        card.add(Box.createVerticalStrut(10));
+        card.add(rRow1);
+        card.add(Box.createVerticalStrut(10));
+        card.add(rRow2);
         card.add(Box.createVerticalStrut(12));
-        card.add(row1);
-        card.add(Box.createVerticalStrut(12));
-        card.add(row2);
+        card.add(dateRow);
 
         return card;
     }
@@ -570,11 +696,18 @@ public class ViewBlotterDialog {
 
             cancelEditBtn.addActionListener(e -> {
                 setFieldsEditable(false);
-                // Reset field values
+                // Reset field values from blotterData
                 Object[] data = blotterData.get(row);
-                tfComplainant.setText(data[1] != null ? data[1].toString() : "N/A");
-                tfRespondent.setText(data[2] != null ? data[2].toString() : "N/A");
-                tfAddress.setText(data[5] != null ? data[5].toString() : "N/A");
+                tfCFirstName.setText(data[9] != null ? data[9].toString() : "");
+                tfCMiddleName.setText(data[10] != null ? data[10].toString() : "");
+                tfCLastName.setText(data[11] != null ? data[11].toString() : "");
+                tfCSuffix.setText(data[12] != null ? data[12].toString() : "");
+                tfRFirstName.setText(data[14] != null ? data[14].toString() : "");
+                tfRMiddleName.setText(data[15] != null ? data[15].toString() : "");
+                tfRLastName.setText(data[16] != null ? data[16].toString() : "");
+                tfRSuffix.setText(data[17] != null ? data[17].toString() : "");
+                tfMobileNumber.setText(data.length > 18 && data[18] != null ? data[18].toString() : "");
+                tfPurok.setText(data[5] != null ? data[5].toString() : "");
                 tfCompType.setText(data[6] != null ? data[6].toString() : "N/A");
                 taDescription.setText(data[7] != null ? data[7].toString() : "");
                 editBtn.setVisible(true);
@@ -647,6 +780,25 @@ public class ViewBlotterDialog {
         lbl.setForeground(new Color(0x1B3A5C));
         lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
         return lbl;
+    }
+
+    private JPanel createLabeledEditableField(String labelText, JTextField tf) {
+        JPanel pnl = new JPanel();
+        pnl.setOpaque(false);
+        pnl.setLayout(new BoxLayout(pnl, BoxLayout.Y_AXIS));
+
+        JLabel lbl = new JLabel(labelText);
+        lbl.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        lbl.setForeground(new Color(0x2C4A6E));
+        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        tf.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        pnl.add(lbl);
+        pnl.add(Box.createVerticalStrut(4));
+        pnl.add(tf);
+
+        return pnl;
     }
 
     private JPanel createDetailField(String labelText, String value, boolean isRespondent) {

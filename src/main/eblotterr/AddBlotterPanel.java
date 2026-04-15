@@ -6,7 +6,6 @@ import java.awt.geom.RoundRectangle2D;
 import java.sql.*;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
-import java.util.List;
 import javax.swing.*;
 import javax.swing.border.*;
 
@@ -50,10 +49,21 @@ public class AddBlotterPanel extends JPanel {
     private final Font FONT_BLOTTER  = new Font("Segoe UI", Font.BOLD, 13);
     private final Font FONT_BTN      = new Font("Segoe UI", Font.BOLD, 12);
 
-    // Form fields
-    private JTextField tfComplainantName;
-    private JTextField tfRespondentName;
-    private JTextField tfComplainantAddress;
+    // Form fields — Complainant
+    private JTextField tfCFirstName;
+    private JTextField tfCMiddleName;
+    private JTextField tfCLastName;
+    private JTextField tfCSuffix;
+    private JTextField tfMobileNumber;
+    private JTextField tfPurok;
+
+    // Form fields — Respondent
+    private JTextField tfRFirstName;
+    private JTextField tfRMiddleName;
+    private JTextField tfRLastName;
+    private JTextField tfRSuffix;
+
+    // Other form fields
     private JButton btnDatePicker;
     private JComboBox<String> cbComplaintType;
     private JTextArea taDescription;
@@ -208,18 +218,51 @@ public class AddBlotterPanel extends JPanel {
     private JPanel buildPartiesCard() {
         JPanel card = createCard();
 
-        JLabel sectionLabel = sectionHeader("PARTIES INVOLVED");
+        // ── Complainant Section ──────────────────────────────────────────
+        JLabel complainantSection = sectionHeader("COMPLAINANT INFORMATION");
 
-        JPanel row1 = new JPanel(new GridLayout(1, 2, 14, 0));
-        row1.setOpaque(false);
-        tfComplainantName = styledField("Enter complainant's full name", false);
-        tfRespondentName  = styledField("Enter respondent's full name", true);
-        row1.add(labeledField("Complainant's Full Name", tfComplainantName));
-        row1.add(labeledField("Respondent's Full Name", tfRespondentName));
+        JPanel cRow1 = new JPanel(new GridLayout(1, 2, 14, 0));
+        cRow1.setOpaque(false);
+        tfCFirstName = styledField("First name", false);
+        tfCMiddleName = styledField("Middle name", false);
+        cRow1.add(labeledField("First Name", tfCFirstName));
+        cRow1.add(labeledField("Middle Name", tfCMiddleName));
 
-        JPanel row2 = new JPanel(new GridLayout(1, 2, 14, 0));
-        row2.setOpaque(false);
-        tfComplainantAddress = styledField("Enter complainant's address", false);
+        JPanel cRow2 = new JPanel(new GridLayout(1, 2, 14, 0));
+        cRow2.setOpaque(false);
+        tfCLastName = styledField("Last name", false);
+        tfCSuffix = styledField("e.g. Jr., Sr., III (Optional)", false);
+        cRow2.add(labeledField("Last Name", tfCLastName));
+        cRow2.add(labeledField("Suffix (Optional)", tfCSuffix));
+
+        // ── Mobile Number & Purok Row ──────────────────────────────────────────
+        JPanel cRow3 = new JPanel(new GridLayout(1, 2, 14, 0));
+        cRow3.setOpaque(false);
+        tfMobileNumber = styledField("Mobile number", false);
+        tfPurok = styledField("Purok", false);
+        cRow3.add(labeledField("Mobile Number", tfMobileNumber));
+        cRow3.add(labeledField("Purok", tfPurok));
+
+        // ── Respondent Section ───────────────────────────────────────────
+        JLabel respondentSection = sectionHeader("RESPONDENT INFORMATION");
+
+        JPanel rRow1 = new JPanel(new GridLayout(1, 2, 14, 0));
+        rRow1.setOpaque(false);
+        tfRFirstName = styledField("First name", true);
+        tfRMiddleName = styledField("Middle name", true);
+        rRow1.add(labeledField("First Name", tfRFirstName));
+        rRow1.add(labeledField("Middle Name", tfRMiddleName));
+
+        JPanel rRow2 = new JPanel(new GridLayout(1, 2, 14, 0));
+        rRow2.setOpaque(false);
+        tfRLastName = styledField("Last name", true);
+        tfRSuffix = styledField("e.g. Jr., Sr., III (Optional)", true);
+        rRow2.add(labeledField("Last Name", tfRLastName));
+        rRow2.add(labeledField("Suffix (Optional)", tfRSuffix));
+
+        // ── Address & Date Row ───────────────────────────────────────────
+        JPanel dateRow = new JPanel(new GridLayout(1, 2, 14, 0));
+        dateRow.setOpaque(false);
 
         // Date picker panel
         JPanel datePanel = new JPanel();
@@ -252,14 +295,25 @@ public class AddBlotterPanel extends JPanel {
         datePanel.add(Box.createVerticalStrut(4));
         datePanel.add(dateInputPanel);
 
-        row2.add(labeledField("Complainant's Address", tfComplainantAddress));
-        row2.add(datePanel);
+        dateRow.add(datePanel);
+        dateRow.add(new JPanel()); // Empty spacer for formatting
 
-        card.add(sectionLabel);
+        // ── Assemble Card ────────────────────────────────────────────────
+        card.add(complainantSection);
+        card.add(Box.createVerticalStrut(10));
+        card.add(cRow1);
+        card.add(Box.createVerticalStrut(10));
+        card.add(cRow2);
+        card.add(Box.createVerticalStrut(10));
+        card.add(cRow3);
+        card.add(Box.createVerticalStrut(16));
+        card.add(respondentSection);
+        card.add(Box.createVerticalStrut(10));
+        card.add(rRow1);
+        card.add(Box.createVerticalStrut(10));
+        card.add(rRow2);
         card.add(Box.createVerticalStrut(12));
-        card.add(row1);
-        card.add(Box.createVerticalStrut(12));
-        card.add(row2);
+        card.add(dateRow);
 
         return card;
     }
@@ -457,11 +511,10 @@ public class AddBlotterPanel extends JPanel {
         row.setOpaque(false);
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
 
-        JButton cancelBtn = roundButton("Cancel", BTN_CANCEL_BG, BTN_CANCEL_FG, true);
-        JButton saveBtn   = roundButton("Save Blotter Entry", BTN_SAVE_BG, BTN_SAVE_FG, false);
-
-        cancelBtn.addActionListener(e -> parentDialog.dispose());
-        saveBtn.addActionListener(e -> saveBlotterToDB());
+        JButton cancelBtn = createCardButton("Cancel", "close", new Color(108, 117, 125), 
+            new Color(220, 53, 69), WHITE, e -> parentDialog.dispose());
+        JButton saveBtn = createCardButton("Save Blotter Entry", "save", BTN_SAVE_BG, 
+            new Color(30, 80, 140), BTN_SAVE_FG, e -> saveBlotterToDB());
 
         row.add(cancelBtn);
         row.add(saveBtn);
@@ -470,35 +523,85 @@ public class AddBlotterPanel extends JPanel {
 
     // ── Save to database ──────────────────────────────────────────────────
 
+    private String getFieldText(JTextField tf, String placeholder) {
+        String val = tf.getText().trim();
+        return val.equals(placeholder) ? "" : val;
+    }
+
     private void saveBlotterToDB() {
-        String complainant = tfComplainantName.getText().trim();
-        String respondent = tfRespondentName.getText().trim();
-        String address = tfComplainantAddress.getText().trim();
-        String complaintType = (String) cbComplaintType.getSelectedItem();
-        String description = taDescription.getText().trim();
+        final String cFirstName = getFieldText(tfCFirstName, "First name");
+        final String cMiddleName = getFieldText(tfCMiddleName, "Middle name");
+        final String cLastName = getFieldText(tfCLastName, "Last name");
+        final String cSuffix = getFieldText(tfCSuffix, "e.g. Jr., Sr., III (Optional)");
+        final String rFirstName = getFieldText(tfRFirstName, "First name");
+        final String rMiddleName = getFieldText(tfRMiddleName, "Middle name");
+        final String rLastName = getFieldText(tfRLastName, "Last name");
+        final String rSuffix = getFieldText(tfRSuffix, "e.g. Jr., Sr., III (Optional)");
+        final String mobileNumber = getFieldText(tfMobileNumber, "Mobile number");
+        final String purok = getFieldText(tfPurok, "Purok");
+        final String complaintType = (String) cbComplaintType.getSelectedItem();
+        final String description = taDescription.getText().trim();
 
-        // Validation
-        if (complainant.isEmpty() || complainant.equals("Enter complainant's full name")) {
+        // Validation — suffix is optional for both complainant and respondent
+        if (cFirstName.isEmpty()) {
             JOptionPane.showMessageDialog(this,
-                "Please enter complainant's name.",
+                "Please enter complainant's first name.",
                 "Validation Error", JOptionPane.ERROR_MESSAGE);
-            tfComplainantName.requestFocus();
+            tfCFirstName.requestFocus();
+            return;
+        }
+        if (cMiddleName.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "Please enter complainant's middle name.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfCMiddleName.requestFocus();
+            return;
+        }
+        if (cLastName.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "Please enter complainant's last name.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfCLastName.requestFocus();
+            return;
+        }
+        // cSuffix is OPTIONAL — no validation
+
+        if (rFirstName.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "Please enter respondent's first name.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfRFirstName.requestFocus();
+            return;
+        }
+        if (rMiddleName.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "Please enter respondent's middle name.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfRMiddleName.requestFocus();
+            return;
+        }
+        if (rLastName.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "Please enter respondent's last name.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfRLastName.requestFocus();
+            return;
+        }
+        // rSuffix is OPTIONAL — no validation
+
+        if (mobileNumber.isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "Please enter complainant's mobile number.",
+                "Validation Error", JOptionPane.ERROR_MESSAGE);
+            tfMobileNumber.requestFocus();
             return;
         }
 
-        if (respondent.isEmpty() || respondent.equals("Enter respondent's full name")) {
+        if (purok.isEmpty()) {
             JOptionPane.showMessageDialog(this,
-                "Please enter respondent's name.",
+                "Please enter complainant's purok.",
                 "Validation Error", JOptionPane.ERROR_MESSAGE);
-            tfRespondentName.requestFocus();
-            return;
-        }
-
-        if (address.isEmpty() || address.equals("Enter complainant's address")) {
-            JOptionPane.showMessageDialog(this,
-                "Please enter complainant's address.",
-                "Validation Error", JOptionPane.ERROR_MESSAGE);
-            tfComplainantAddress.requestFocus();
+            tfPurok.requestFocus();
             return;
         }
 
@@ -516,20 +619,67 @@ public class AddBlotterPanel extends JPanel {
             @Override
             protected Boolean doInBackground() throws Exception {
                 try (Connection conn = connectionProvider.getConnection()) {
-                    SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
-                    String formattedDate = sdf.format(selectedDate);
+                    conn.setAutoCommit(false);
+                    try {
+                        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+                        String formattedDate = sdf.format(selectedDate);
 
-                    String insert = "INSERT INTO blotter (complainant, Respondent, Cmplnt_address, " +
-                                  "date, complt_type, description, status) VALUES (?, ?, ?, ?, ?, ?, ?)";
-                    try (PreparedStatement pstmt = conn.prepareStatement(insert)) {
-                        pstmt.setString(1, complainant);
-                        pstmt.setString(2, respondent);
-                        pstmt.setString(3, address);
-                        pstmt.setDate(4, java.sql.Date.valueOf(formattedDate));
-                        pstmt.setString(5, complaintType);
-                        pstmt.setString(6, description);
-                        pstmt.setString(7, "pending");
-                        pstmt.executeUpdate();
+                        // 1) Insert complainant
+                        int complainantId;
+                        String insertComplainant = "INSERT INTO complainant " +
+                            "(first_name, middle_name, last_name, suffix, mobile_number, purok) " +
+                            "VALUES (?, ?, ?, ?, ?, ?)";
+                        try (PreparedStatement pstmt = conn.prepareStatement(
+                                insertComplainant, Statement.RETURN_GENERATED_KEYS)) {
+                            pstmt.setString(1, cFirstName);
+                            pstmt.setString(2, cMiddleName);
+                            pstmt.setString(3, cLastName);
+                            pstmt.setString(4, cSuffix.isEmpty() ? null : cSuffix);
+                            pstmt.setString(5, mobileNumber);
+                            pstmt.setString(6, purok);
+                            pstmt.executeUpdate();
+                            try (ResultSet keys = pstmt.getGeneratedKeys()) {
+                                keys.next();
+                                complainantId = keys.getInt(1);
+                            }
+                        }
+
+                        // 2) Insert respondent
+                        int respondentId;
+                        String insertRespondent = "INSERT INTO respondent " +
+                            "(first_name, middle_name, last_name, suffix) " +
+                            "VALUES (?, ?, ?, ?)";
+                        try (PreparedStatement pstmt = conn.prepareStatement(
+                                insertRespondent, Statement.RETURN_GENERATED_KEYS)) {
+                            pstmt.setString(1, rFirstName);
+                            pstmt.setString(2, rMiddleName);
+                            pstmt.setString(3, rLastName);
+                            pstmt.setString(4, rSuffix.isEmpty() ? null : rSuffix);
+                            pstmt.executeUpdate();
+                            try (ResultSet keys = pstmt.getGeneratedKeys()) {
+                                keys.next();
+                                respondentId = keys.getInt(1);
+                            }
+                        }
+
+                        // 3) Insert blotter with foreign keys
+                        String insertBlotter = "INSERT INTO blotter " +
+                            "(complainant_id, respondent_id, date, complt_type, description, status) " +
+                            "VALUES (?, ?, ?, ?, ?, ?)";
+                        try (PreparedStatement pstmt = conn.prepareStatement(insertBlotter)) {
+                            pstmt.setInt(1, complainantId);
+                            pstmt.setInt(2, respondentId);
+                            pstmt.setDate(3, java.sql.Date.valueOf(formattedDate));
+                            pstmt.setString(4, complaintType);
+                            pstmt.setString(5, description);
+                            pstmt.setString(6, "pending");
+                            pstmt.executeUpdate();
+                        }
+
+                        conn.commit();
+                    } catch (Exception e) {
+                        conn.rollback();
+                        throw e;
                     }
                 }
                 return true;
@@ -564,9 +714,16 @@ public class AddBlotterPanel extends JPanel {
     }
 
     private void setAllFieldsEnabled(boolean enabled) {
-        tfComplainantName.setEnabled(enabled);
-        tfRespondentName.setEnabled(enabled);
-        tfComplainantAddress.setEnabled(enabled);
+        tfCFirstName.setEnabled(enabled);
+        tfCMiddleName.setEnabled(enabled);
+        tfCLastName.setEnabled(enabled);
+        tfCSuffix.setEnabled(enabled);
+        tfRFirstName.setEnabled(enabled);
+        tfRMiddleName.setEnabled(enabled);
+        tfRLastName.setEnabled(enabled);
+        tfRSuffix.setEnabled(enabled);
+        tfMobileNumber.setEnabled(enabled);
+        tfPurok.setEnabled(enabled);
         btnDatePicker.setEnabled(enabled);
         cbComplaintType.setEnabled(enabled);
         taDescription.setEnabled(enabled);
@@ -579,16 +736,27 @@ public class AddBlotterPanel extends JPanel {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(0, 0, 0, 18));
-                g2.fill(new RoundRectangle2D.Double(3, 5, getWidth()-6, getHeight()-6, 14, 14));
-                g2.setColor(CARD_BG);
-                g2.fill(new RoundRectangle2D.Double(0, 0, getWidth()-4, getHeight()-4, 12, 12));
+                
+                // Enhanced shadow
+                g2.setColor(new Color(0, 0, 0, 25));
+                g2.fill(new RoundRectangle2D.Double(4, 6, getWidth()-6, getHeight()-6, 16, 16));
+                
+                // Card background with gradient effect
+                GradientPaint gradient = new GradientPaint(0, 0, CARD_BG, 0, getHeight(), new Color(250, 252, 255));
+                g2.setPaint(gradient);
+                g2.fill(new RoundRectangle2D.Double(0, 0, getWidth()-4, getHeight()-4, 14, 14));
+                
+                // Subtle border
+                g2.setColor(new Color(200, 210, 225));
+                g2.setStroke(new BasicStroke(1f));
+                g2.draw(new RoundRectangle2D.Double(0.5, 0.5, getWidth()-5, getHeight()-5, 14, 14));
+                
                 g2.dispose();
             }
         };
         card.setOpaque(false);
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBorder(BorderFactory.createEmptyBorder(18, 20, 20, 20));
+        card.setBorder(BorderFactory.createEmptyBorder(20, 24, 24, 24));
         card.setAlignmentX(Component.LEFT_ALIGNMENT);
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
         return card;
@@ -654,6 +822,73 @@ public class AddBlotterPanel extends JPanel {
         tf.setForeground(TEXT_SEC);
 
         return tf;
+    }
+
+    private JButton createCardButton(String text, String iconName, Color bg, Color hover, Color fg, ActionListener listener) {
+        JButton btn = new JButton(text) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                int w = getWidth();
+                int h = getHeight();
+                
+                // Card shadow effect
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(2, 3, w - 2, h - 2, 12, 12);
+                
+                // Button background
+                if (getModel().isPressed()) {
+                    g2.setColor(hover.darker());
+                } else if (getModel().isRollover()) {
+                    g2.setColor(hover);
+                } else {
+                    g2.setColor(bg);
+                }
+                g2.fillRoundRect(0, 0, w - 2, h - 2, 12, 12);
+                
+                // Icon
+                g2.setColor(fg);
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int iconX = 16;
+                int iconY = h / 2;
+                drawCardIcon(g2, iconName, iconX, iconY);
+                
+                // Text
+                g2.setColor(fg);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                FontMetrics fm = g2.getFontMetrics();
+                int textX = 44;
+                int textY = (h + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(getText(), textX, textY);
+                
+                g2.dispose();
+            }
+            
+            private void drawCardIcon(Graphics2D g2, String icon, int x, int y) {
+                switch (icon) {
+                    case "save":
+                        g2.fillRect(x - 6, y - 8, 14, 16);
+                        g2.drawLine(x - 2, y - 4, x + 2, y);
+                        g2.drawLine(x - 2, y, x + 2, y + 4);
+                        break;
+                    case "close":
+                        g2.drawLine(x - 6, y - 6, x + 6, y + 6);
+                        g2.drawLine(x + 6, y - 6, x - 6, y + 6);
+                        break;
+                }
+            }
+        };
+        
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btn.setForeground(fg);
+        btn.setContentAreaFilled(false);
+        btn.setBorderPainted(false);
+        btn.setFocusPainted(false);
+        btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        btn.setPreferredSize(new Dimension(text.length() > 12 ? 180 : 120, 44));
+        btn.addActionListener(listener);
+        return btn;
     }
 
     private JButton roundButton(String text, Color bg, Color fg, boolean outlined) {
