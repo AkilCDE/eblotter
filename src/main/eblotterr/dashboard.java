@@ -13,43 +13,65 @@ import javax.swing.table.*;
 
 public class dashboard extends JFrame {
 
-    // ── Modern color palette ───────────────────────────────────────────────
+    // ── Professional blue and white color palette ─────────────────────────────
     private static final Color WHITE        = Color.WHITE;
+    private static final Color BLACK        = Color.BLACK;
     private static final Color BLUE         = new Color(45, 118, 200);
     private static final Color BLUE_HOVER   = new Color(35, 95, 160);
     private static final Color BLUE_DARK    = new Color(25, 60, 110);
     private static final Color BLUE_LIGHT   = new Color(230, 241, 251);
-    private static final Color BG           = new Color(248, 249, 250);
-    private static final Color BORDER_CLR   = new Color(220, 223, 228);
-    private static final Color TEXT_PRI     = new Color(33, 41, 52);
-    private static final Color TEXT_SEC     = new Color(115, 130, 150);
-    private static final Color TEXT_LIGHT   = new Color(185, 200, 220);
+    private static final Color BG           = new Color(245, 248, 255);
+    private static final Color BORDER_CLR   = new Color(200, 210, 230);
+    private static final Color TEXT_PRI     = Color.BLACK;
+    private static final Color TEXT_SEC     = new Color(80, 90, 110);
+    private static final Color TEXT_LIGHT   = new Color(180, 190, 210);
     private static final Color STAT_BLUE    = new Color(52, 134, 235);
-    private static final Color STAT_ORANGE  = new Color(255, 140, 60);
-    private static final Color STAT_GREEN   = new Color(46, 176, 120);
-    private static final Color PENDING_BG   = new Color(255, 247, 235);
-    private static final Color PENDING_FG   = new Color(255, 140, 60);
-    private static final Color RESOLVED_BG  = new Color(228, 248, 240);
-    private static final Color RESOLVED_FG  = new Color(46, 176, 120);
+    private static final Color STAT_ORANGE  = new Color(45, 118, 200);
+    private static final Color STAT_GREEN   = new Color(35, 95, 160);
+    private static final Color PENDING_BG   = new Color(230, 241, 251);
+    private static final Color PENDING_FG   = new Color(45, 118, 200);
+    private static final Color RESOLVED_BG  = new Color(240, 245, 255);
+    private static final Color RESOLVED_FG  = new Color(35, 95, 160);
+    private static final Color SIDEBAR_BG   = new Color(20, 50, 90);
+    private static final Color SIDEBAR_HOVER = new Color(35, 75, 120);
+    private static final Color PAGE_BG      = new Color(240, 245, 255);
 
     private final String currentUsername;
-    private final String currentRole; // "secretary", "captain", or "kagawad"
+    private final String currentRole;
+    
+    // ── Card panels ─────────────────────────────────────────────────────────
+    private JPanel cardPanel;
+    private CardLayout cardLayout;
+    private JPanel dashboardPanel;
+    private JPanel addBlotterPanel;
+    private JPanel historyPanel;
+    
+    // ── Dashboard components ────────────────────────────────────────────────
     private JTable table;
     private DefaultTableModel tableModel;
-    private JTextField searchField;
     private final List<Object[]> blotterData = new ArrayList<>();
     private JButton addBtn;
     private JButton searchBtn;
-    private JButton historyBtn;
-
-    // ── Stat card value labels ─────────────────────────────────────────────
+    private JTextField searchField;
     private JLabel totalValueLabel;
     private JLabel pendingValueLabel;
     private JLabel resolvedValueLabel;
+    
+    // ── Sidebar buttons ─────────────────────────────────────────────────────
+    private JButton homeBtn;
+    private JButton addBlotterBtn;
+    private JButton historyBtn;
+    private JButton profileBtn;
+    private JButton usersBtn;
+    private JButton settingsBtn;
+    private List<JButton> sidebarButtons = new ArrayList<>();
 
     // ── Extracted feature handlers ─────────────────────────────────────────
     private ViewBlotterDialog viewBlotterDialog;
     private PrintBlotterFrame printBlotterFrame;
+    
+    // ── Current active panel reference ──────────────────────────────────────
+    private AddBlotterPanel currentAddBlotterPanel;
 
     public dashboard() {
         this("User", "secretary");
@@ -59,9 +81,6 @@ public class dashboard extends JFrame {
         this(username, "secretary");
     }
 
-    /**
-     * @return true if the current user is a secretary (full access)
-     */
     public boolean isSecretary() {
         return "secretary".equalsIgnoreCase(currentRole);
     }
@@ -71,13 +90,13 @@ public class dashboard extends JFrame {
         this.currentRole = (role != null) ? role.toLowerCase() : "secretary";
         setTitle("Barangay e-Blotter — Dashboard");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(1100, 750);
-        setMinimumSize(new Dimension(800, 550));
+        setSize(1200, 800);
+        setMinimumSize(new Dimension(1000, 650));
         setResizable(true);
         setLocationRelativeTo(null);
+        
         loadBlotterData();
-
-        // Initialize extracted feature handlers
+        
         printBlotterFrame = new PrintBlotterFrame(this, blotterData);
         viewBlotterDialog = new ViewBlotterDialog(
             this, blotterData,
@@ -87,6 +106,7 @@ public class dashboard extends JFrame {
             () -> {
                 loadBlotterData();
                 refreshTableAndStats();
+                refreshHistoryPanel();
             },
             currentRole
         );
@@ -95,7 +115,6 @@ public class dashboard extends JFrame {
     }
 
     // ── Database helpers ───────────────────────────────────────────────────
-
     Connection getConnection() throws ClassNotFoundException, SQLException {
         Class.forName("com.mysql.cj.jdbc.Driver");
         return DriverManager.getConnection("jdbc:mysql://localhost:3306/ebs", "root", "");
@@ -115,7 +134,7 @@ public class dashboard extends JFrame {
                          "JOIN respondent r ON b.respondent_id = r.respondent_id " +
                          "ORDER BY b.date DESC";
             try (Statement stmt = conn.createStatement();
-                 ResultSet rs   = stmt.executeQuery(sql)) {
+                 ResultSet rs = stmt.executeQuery(sql)) {
                 while (rs.next()) {
                     String cFname = rs.getString("c_fname") != null ? rs.getString("c_fname") : "";
                     String cMname = rs.getString("c_mname") != null ? rs.getString("c_mname") : "";
@@ -127,25 +146,19 @@ public class dashboard extends JFrame {
                     String rSuffix = rs.getString("r_suffix") != null ? rs.getString("r_suffix") : "";
 
                     blotterData.add(new Object[]{
-                        rs.getInt("blotter_id"),                              // [0]
-                        buildFullName(cFname, cMname, cLname, cSuffix),       // [1] complainant display name
-                        buildFullName(rFname, rMname, rLname, rSuffix),       // [2] respondent display name
-                        rs.getDate("date") != null ? rs.getDate("date").toString() : "N/A", // [3]
-                        rs.getString("status"),                               // [4]
-                        rs.getString("c_purok"),                              // [5] complainant purok
-                        rs.getString("complt_type"),                          // [6]
-                        rs.getString("description"),                          // [7]
-                        rs.getInt("complainant_id"),                          // [8]
-                        cFname,                                               // [9]
-                        cMname,                                               // [10]
-                        cLname,                                               // [11]
-                        cSuffix,                                              // [12]
-                        rs.getInt("respondent_id"),                           // [13]
-                        rFname,                                               // [14]
-                        rMname,                                               // [15]
-                        rLname,                                               // [16]
-                        rSuffix,                                              // [17]
-                        rs.getString("c_mobile")                              // [18] complainant mobile
+                        rs.getInt("blotter_id"),
+                        buildFullName(cFname, cMname, cLname, cSuffix),
+                        buildFullName(rFname, rMname, rLname, rSuffix),
+                        rs.getDate("date") != null ? rs.getDate("date").toString() : "N/A",
+                        rs.getString("status"),
+                        rs.getString("c_purok"),
+                        rs.getString("complt_type"),
+                        rs.getString("description"),
+                        rs.getInt("complainant_id"),
+                        cFname, cMname, cLname, cSuffix,
+                        rs.getInt("respondent_id"),
+                        rFname, rMname, rLname, rSuffix,
+                        rs.getString("c_mobile")
                     });
                 }
             }
@@ -173,39 +186,39 @@ public class dashboard extends JFrame {
     }
 
     private void updateStatCards() {
-        long total      = blotterData.size();
-        long pending    = blotterData.stream()
-                            .filter(r -> "pending".equalsIgnoreCase(r[4].toString())).count();
-        long resolved   = blotterData.stream()
-                            .filter(r -> "resolved".equalsIgnoreCase(r[4].toString())).count();
+        long total = blotterData.size();
+        long pending = blotterData.stream()
+                .filter(r -> "pending".equalsIgnoreCase(r[4].toString())).count();
+        long resolved = blotterData.stream()
+                .filter(r -> "resolved".equalsIgnoreCase(r[4].toString())).count();
 
-        if (totalValueLabel      != null) totalValueLabel.setText(String.valueOf(total));
-        if (pendingValueLabel    != null) pendingValueLabel.setText(String.valueOf(pending));
-        if (resolvedValueLabel   != null) resolvedValueLabel.setText(String.valueOf(resolved));
+        if (totalValueLabel != null) totalValueLabel.setText(String.valueOf(total));
+        if (pendingValueLabel != null) pendingValueLabel.setText(String.valueOf(pending));
+        if (resolvedValueLabel != null) resolvedValueLabel.setText(String.valueOf(resolved));
     }
 
     private void refreshTableAndStats() {
-        tableModel.setRowCount(0);
-        for (Object[] row : blotterData) {
-            String statusDisplay = "pending".equalsIgnoreCase(row[4].toString())
-                                   ? "Pending" : "Resolved";
-            tableModel.addRow(new Object[]{
-                row[0], row[1], row[2], row[3], statusDisplay, "View"
-            });
+        if (tableModel != null) {
+            tableModel.setRowCount(0);
+            for (Object[] row : blotterData) {
+                String statusDisplay = "pending".equalsIgnoreCase(row[4].toString())
+                        ? "Pending" : "Resolved";
+                tableModel.addRow(new Object[]{
+                    row[0], row[1], row[2], row[3], statusDisplay, "View"
+                });
+            }
         }
         updateStatCards();
-        table.repaint();
+        if (table != null) table.repaint();
     }
 
     private void setAllButtonsEnabled(boolean enabled) {
-        if (addBtn    != null) addBtn.setEnabled(enabled);
+        if (addBtn != null) addBtn.setEnabled(enabled);
         if (searchBtn != null) searchBtn.setEnabled(enabled);
-        if (historyBtn != null) historyBtn.setEnabled(enabled);
         if (searchField != null) searchField.setEnabled(enabled);
     }
 
-    // ── Root layout ────────────────────────────────────────────────────────
-
+    // ── Root layout with CardLayout ────────────────────────────────────────
     private JPanel buildRoot() {
         JPanel root = new JPanel(new BorderLayout(0, 0));
         root.setBackground(BG);
@@ -214,14 +227,29 @@ public class dashboard extends JFrame {
         JPanel mainContent = new JPanel(new BorderLayout(0, 0));
         mainContent.setBackground(BG);
         mainContent.add(buildSidebar(), BorderLayout.WEST);
-        mainContent.add(buildBody(), BorderLayout.CENTER);
         
+        // Create CardLayout panel
+        cardLayout = new CardLayout();
+        cardPanel = new JPanel(cardLayout);
+        cardPanel.setBackground(BG);
+        
+        // Build all panels
+        dashboardPanel = buildDashboardPanel();
+        addBlotterPanel = buildAddBlotterPanelWrapper();
+        historyPanel = buildHistoryPanelWrapper();
+        
+        // Add panels to card layout
+        cardPanel.add(dashboardPanel, "dashboard");
+        cardPanel.add(addBlotterPanel, "addBlotter");
+        cardPanel.add(historyPanel, "history");
+        
+        mainContent.add(cardPanel, BorderLayout.CENTER);
         root.add(mainContent, BorderLayout.CENTER);
+        
         return root;
     }
 
     // ── Header ─────────────────────────────────────────────────────────────
-
     private JPanel buildHeader() {
         JPanel header = new JPanel(new BorderLayout());
         header.setBackground(BLUE_DARK);
@@ -230,6 +258,20 @@ public class dashboard extends JFrame {
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
         left.setOpaque(false);
 
+        JPanel badge = createHeaderBadge();
+        JPanel titles = createHeaderTitles();
+        
+        left.add(badge);
+        left.add(titles);
+
+        JPanel right = createHeaderRight();
+        
+        header.add(left, BorderLayout.WEST);
+        header.add(right, BorderLayout.EAST);
+        return header;
+    }
+
+    private JPanel createHeaderBadge() {
         JPanel badge = new JPanel() {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
@@ -249,7 +291,10 @@ public class dashboard extends JFrame {
         };
         badge.setOpaque(false);
         badge.setPreferredSize(new Dimension(42, 42));
+        return badge;
+    }
 
+    private JPanel createHeaderTitles() {
         JPanel titles = new JPanel();
         titles.setOpaque(false);
         titles.setLayout(new BoxLayout(titles, BoxLayout.Y_AXIS));
@@ -264,9 +309,10 @@ public class dashboard extends JFrame {
 
         titles.add(appName);
         titles.add(dashLabel);
-        left.add(badge);
-        left.add(titles);
+        return titles;
+    }
 
+    private JPanel createHeaderRight() {
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
         right.setOpaque(false);
 
@@ -297,27 +343,8 @@ public class dashboard extends JFrame {
         userInfoPanel.add(nameLabel);
         userInfoPanel.add(dateLabel);
 
-        JPanel avatar = new JPanel() {
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                                    RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(BLUE);
-                g2.fillOval(0, 0, getWidth(), getHeight());
-                g2.setColor(WHITE);
-                g2.setFont(new Font("Segoe UI", Font.BOLD, 14));
-                FontMetrics fm = g2.getFontMetrics();
-                String initial = (currentUsername != null && !currentUsername.isEmpty())
-                                 ? currentUsername.substring(0, 1).toUpperCase() : "U";
-                g2.drawString(initial,
-                    (getWidth()  - fm.stringWidth(initial)) / 2,
-                    (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
-                g2.dispose();
-            }
-        };
-        avatar.setOpaque(false);
-        avatar.setPreferredSize(new Dimension(40, 40));
-
+        JPanel avatar = createAvatar();
+        
         JButton logoutBtn = new JButton("Logout");
         logoutBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
         logoutBtn.setForeground(WHITE);
@@ -332,10 +359,31 @@ public class dashboard extends JFrame {
         right.add(avatar);
         right.add(Box.createHorizontalStrut(12));
         right.add(logoutBtn);
+        return right;
+    }
 
-        header.add(left,  BorderLayout.WEST);
-        header.add(right, BorderLayout.EAST);
-        return header;
+    private JPanel createAvatar() {
+        JPanel avatar = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                                    RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(BLUE);
+                g2.fillOval(0, 0, getWidth(), getHeight());
+                g2.setColor(WHITE);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 14));
+                FontMetrics fm = g2.getFontMetrics();
+                String initial = (currentUsername != null && !currentUsername.isEmpty())
+                        ? currentUsername.substring(0, 1).toUpperCase() : "U";
+                g2.drawString(initial,
+                    (getWidth() - fm.stringWidth(initial)) / 2,
+                    (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
+                g2.dispose();
+            }
+        };
+        avatar.setOpaque(false);
+        avatar.setPreferredSize(new Dimension(40, 40));
+        return avatar;
     }
 
     private String cap(String s) {
@@ -344,49 +392,175 @@ public class dashboard extends JFrame {
     }
 
     // ── Sidebar ─────────────────────────────────────────────────────────────
-
     private JPanel buildSidebar() {
-        JPanel sidebar = new JPanel();
+        JPanel sidebar = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // Gradient background
+                GradientPaint gp = new GradientPaint(0, 0, SIDEBAR_BG, 0, getHeight(), 
+                    new Color(20, 55, 90));
+                g2.setPaint(gp);
+                g2.fillRect(0, 0, getWidth(), getHeight());
+                g2.dispose();
+            }
+        };
         sidebar.setLayout(new BoxLayout(sidebar, BoxLayout.Y_AXIS));
-        sidebar.setBackground(WHITE);
-        sidebar.setBorder(new CompoundBorder(
-            new MatteBorder(0, 0, 0, 1, BORDER_CLR),
-            new EmptyBorder(20, 16, 20, 16)));
-        sidebar.setPreferredSize(new Dimension(220, 0));
+        sidebar.setPreferredSize(new Dimension(260, 0));
+        sidebar.setBorder(new EmptyBorder(20, 12, 20, 12));
 
-        // Sidebar title
-        JLabel sidebarTitle = new JLabel("NAVIGATION");
-        sidebarTitle.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        sidebarTitle.setForeground(TEXT_SEC);
-        sidebarTitle.setBorder(new EmptyBorder(0, 0, 16, 0));
-        sidebar.add(sidebarTitle);
-        sidebar.add(Box.createVerticalStrut(8));
+        // Brand panel
+        JPanel brandPanel = createBrandPanel();
+        sidebar.add(brandPanel);
+        sidebar.add(Box.createVerticalStrut(20));
+
+        // Navigation label
+        JLabel navLabel = new JLabel("MAIN NAVIGATION");
+        navLabel.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        navLabel.setForeground(new Color(150, 180, 210));
+        navLabel.setBorder(new EmptyBorder(0, 12, 8, 0));
+        navLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        sidebar.add(navLabel);
 
         // Navigation buttons
-        sidebar.add(createSidebarButton("Profile", "user", e -> showProfile()));
-        sidebar.add(Box.createVerticalStrut(8));
-        sidebar.add(createSidebarButton("Home", "home", e -> {
-            // Already on home/dashboard
-        }));
-        sidebar.add(Box.createVerticalStrut(8));
-        sidebar.add(createSidebarButton("Add New Blotter", "plus", e -> showAddDialog()));
-        sidebar.add(Box.createVerticalStrut(8));
-        sidebar.add(createSidebarButton("Blotters", "list", e -> {
-            // Already showing blotters
-        }));
-        sidebar.add(Box.createVerticalStrut(8));
-        sidebar.add(createSidebarButton("Blotter History", "clock", e -> showHistoryFrame()));
-        sidebar.add(Box.createVerticalStrut(8));
-        sidebar.add(createSidebarButton("Users", "users", e -> showUsers()));
-        sidebar.add(Box.createVerticalStrut(8));
-        sidebar.add(createSidebarButton("Settings", "settings", e -> showSettings()));
+        homeBtn = createSidebarButton("Dashboard", "home", true);
+        homeBtn.addActionListener(e -> {
+            cardLayout.show(cardPanel, "dashboard");
+            setActiveButton(homeBtn);
+        });
+        sidebar.add(homeBtn);
+        sidebar.add(Box.createVerticalStrut(4));
+
+        addBlotterBtn = createSidebarButton("Add New Blotter", "plus", isSecretary());
+        addBlotterBtn.addActionListener(e -> {
+            if (isSecretary()) {
+                refreshAddBlotterPanel();
+                cardLayout.show(cardPanel, "addBlotter");
+                setActiveButton(addBlotterBtn);
+            } else {
+                JOptionPane.showMessageDialog(this,
+                    "Only secretaries can add new blotter entries.",
+                    "Access Denied", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+        sidebar.add(addBlotterBtn);
+        sidebar.add(Box.createVerticalStrut(4));
+
+        historyBtn = createSidebarButton("Blotter History", "clock", true);
+        historyBtn.addActionListener(e -> {
+            refreshHistoryPanel();
+            cardLayout.show(cardPanel, "history");
+            setActiveButton(historyBtn);
+        });
+        sidebar.add(historyBtn);
+        sidebar.add(Box.createVerticalStrut(16));
+
+        // Management section
+        JLabel mgmtLabel = new JLabel("MANAGEMENT");
+        mgmtLabel.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        mgmtLabel.setForeground(new Color(150, 180, 210));
+        mgmtLabel.setBorder(new EmptyBorder(0, 12, 8, 0));
+        mgmtLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        sidebar.add(mgmtLabel);
+
+        profileBtn = createSidebarButton("Profile", "user", true);
+        profileBtn.addActionListener(e -> {
+            showProfile();
+            setActiveButton(profileBtn);
+        });
+        sidebar.add(profileBtn);
+        sidebar.add(Box.createVerticalStrut(4));
+
+        usersBtn = createSidebarButton("Users", "users", isSecretary());
+        usersBtn.addActionListener(e -> {
+            if (isSecretary()) {
+                showUsers();
+                setActiveButton(usersBtn);
+            } else {
+                JOptionPane.showMessageDialog(this,
+                    "Only secretaries can manage users.",
+                    "Access Denied", JOptionPane.WARNING_MESSAGE);
+            }
+        });
+        sidebar.add(usersBtn);
+        sidebar.add(Box.createVerticalStrut(4));
+
+        settingsBtn = createSidebarButton("Settings", "settings", true);
+        settingsBtn.addActionListener(e -> {
+            showSettings();
+            setActiveButton(settingsBtn);
+        });
+        sidebar.add(settingsBtn);
 
         sidebar.add(Box.createVerticalGlue());
+        
+        // Logout button
+        JButton logoutSideBtn = createSidebarLogoutButton();
+        sidebar.add(logoutSideBtn);
+
+        sidebarButtons.add(homeBtn);
+        sidebarButtons.add(addBlotterBtn);
+        sidebarButtons.add(historyBtn);
+        sidebarButtons.add(profileBtn);
+        sidebarButtons.add(usersBtn);
+        sidebarButtons.add(settingsBtn);
 
         return sidebar;
     }
 
-    private JButton createSidebarButton(String text, String iconName, ActionListener listener) {
+    private JPanel createBrandPanel() {
+        JPanel brand = new JPanel();
+        brand.setOpaque(false);
+        brand.setLayout(new BoxLayout(brand, BoxLayout.X_AXIS));
+        brand.setBorder(new EmptyBorder(8, 12, 8, 12));
+        brand.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
+
+        JPanel iconBox = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(52, 134, 235));
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+                g2.setColor(WHITE);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 18));
+                FontMetrics fm = g2.getFontMetrics();
+                String b = "B";
+                g2.drawString(b, (getWidth() - fm.stringWidth(b)) / 2,
+                    (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
+                g2.dispose();
+            }
+        };
+        iconBox.setPreferredSize(new Dimension(44, 44));
+        iconBox.setMaximumSize(new Dimension(44, 44));
+        iconBox.setMinimumSize(new Dimension(44, 44));
+        iconBox.setOpaque(false);
+
+        JPanel textBox = new JPanel();
+        textBox.setOpaque(false);
+        textBox.setLayout(new BoxLayout(textBox, BoxLayout.Y_AXIS));
+        textBox.setBorder(new EmptyBorder(0, 12, 0, 0));
+
+        JLabel brandTitle = new JLabel("E-Blotter");
+        brandTitle.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        brandTitle.setForeground(WHITE);
+
+        JLabel brandSub = new JLabel("Barangay System");
+        brandSub.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        brandSub.setForeground(new Color(150, 180, 210));
+
+        textBox.add(brandTitle);
+        textBox.add(brandSub);
+
+        brand.add(iconBox);
+        brand.add(textBox);
+        brand.add(Box.createHorizontalGlue());
+
+        return brand;
+    }
+
+    private JButton createSidebarButton(String text, String iconName, boolean enabled) {
         JButton button = new JButton(text) {
             @Override
             protected void paintComponent(Graphics g) {
@@ -397,132 +571,219 @@ public class dashboard extends JFrame {
                 int h = getHeight();
 
                 // Background
-                if (getModel().isPressed()) {
-                    g2.setColor(new Color(45, 118, 200, 30));
+                if (!isEnabled()) {
+                    g2.setColor(new Color(100, 100, 100, 30));
+                } else if (getModel().isPressed()) {
+                    g2.setColor(SIDEBAR_HOVER);
                 } else if (getModel().isRollover()) {
-                    g2.setColor(new Color(45, 118, 200, 15));
+                    g2.setColor(SIDEBAR_HOVER);
                 } else {
-                    g2.setColor(WHITE);
+                    g2.setColor(new Color(255, 255, 255, 0));
                 }
-                g2.fillRoundRect(0, 0, w, h, 10, 10);
+                g2.fillRoundRect(4, 2, w - 8, h - 4, 10, 10);
 
                 // Icon
-                g2.setColor(BLUE);
+                if (isEnabled()) {
+                    g2.setColor(new Color(100, 180, 255));
+                } else {
+                    g2.setColor(new Color(120, 120, 130));
+                }
                 g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                int iconX = 12;
+                int iconX = 16;
                 int iconY = h / 2;
-                drawIcon(g2, iconName, iconX, iconY);
+                drawSidebarIcon(g2, iconName, iconX, iconY);
 
                 // Text
-                g2.setColor(TEXT_PRI);
-                g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                if (isEnabled()) {
+                    g2.setColor(WHITE);
+                } else {
+                    g2.setColor(new Color(160, 160, 170));
+                }
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
                 FontMetrics fm = g2.getFontMetrics();
-                int textX = 40;
+                int textX = 48;
                 int textY = (h + fm.getAscent() - fm.getDescent()) / 2;
                 g2.drawString(getText(), textX, textY);
 
                 g2.dispose();
             }
 
-            private void drawIcon(Graphics2D g2, String icon, int x, int y) {
+            private void drawSidebarIcon(Graphics2D g2, String icon, int x, int y) {
                 switch (icon) {
-                    case "user":
-                        g2.drawOval(x, y - 12, 12, 12);
-                        g2.drawArc(x - 3, y, 18, 10, 0, 180);
-                        break;
                     case "home":
-                        g2.drawLine(x, y + 5, x + 6, y - 5);
-                        g2.drawLine(x + 6, y - 5, x + 12, y + 5);
-                        g2.drawRect(x + 1, y + 5, 10, 10);
+                        g2.drawLine(x - 2, y + 4, x + 4, y - 6);
+                        g2.drawLine(x + 4, y - 6, x + 10, y + 4);
+                        g2.drawRect(x, y + 4, 8, 8);
                         break;
                     case "plus":
-                        g2.drawLine(x + 6, y - 6, x + 6, y + 6);
-                        g2.drawLine(x, y, x + 12, y);
-                        break;
-                    case "list":
-                        g2.drawLine(x, y - 5, x + 12, y - 5);
-                        g2.drawLine(x, y, x + 12, y);
-                        g2.drawLine(x, y + 5, x + 12, y + 5);
+                        g2.drawOval(x - 4, y - 8, 16, 16);
+                        g2.drawLine(x + 4, y - 4, x + 4, y + 4);
+                        g2.drawLine(x, y, x + 8, y);
                         break;
                     case "clock":
-                        g2.drawOval(x, y - 8, 14, 14);
-                        g2.drawLine(x + 7, y - 8, x + 7, y - 3);
-                        g2.drawLine(x + 7, y, x + 11, y);
+                        g2.drawOval(x - 4, y - 10, 16, 16);
+                        g2.drawLine(x + 4, y - 10, x + 4, y - 5);
+                        g2.drawLine(x + 4, y - 2, x + 8, y - 2);
+                        break;
+                    case "user":
+                        g2.drawOval(x, y - 12, 10, 10);
+                        g2.drawArc(x - 4, y - 2, 18, 12, 0, 180);
                         break;
                     case "users":
-                        g2.drawOval(x, y - 10, 8, 8);
-                        g2.drawArc(x - 2, y - 2, 12, 6, 0, 180);
-                        g2.drawOval(x + 8, y - 6, 6, 6);
-                        g2.drawArc(x + 6, y, 8, 5, 0, 180);
+                        g2.drawOval(x - 2, y - 12, 8, 8);
+                        g2.drawArc(x - 6, y - 4, 16, 8, 0, 180);
+                        g2.drawOval(x + 8, y - 8, 6, 6);
+                        g2.drawArc(x + 6, y, 10, 6, 0, 180);
                         break;
                     case "settings":
-                        g2.drawOval(x + 1, y - 7, 10, 10);
-                        g2.drawLine(x + 6, y - 12, x + 6, y - 7);
-                        g2.drawLine(x + 6, y + 3, x + 6, y + 8);
-                        g2.drawLine(x - 2, y - 2, x + 1, y - 2);
-                        g2.drawLine(x + 11, y - 2, x + 14, y - 2);
+                        g2.drawOval(x, y - 10, 10, 10);
+                        g2.drawLine(x + 5, y - 14, x + 5, y - 10);
+                        g2.drawLine(x + 5, y, x + 5, y + 4);
                         break;
                 }
             }
         };
 
-        button.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        button.setForeground(TEXT_PRI);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        button.setForeground(WHITE);
         button.setHorizontalAlignment(SwingConstants.LEFT);
         button.setBorderPainted(false);
         button.setFocusPainted(false);
         button.setContentAreaFilled(false);
         button.setOpaque(false);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
-        button.setPreferredSize(new Dimension(180, 44));
-        button.addActionListener(listener);
-
+        button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+        button.setPreferredSize(new Dimension(220, 48));
+        button.setEnabled(enabled);
+        button.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
         return button;
     }
 
-    private void showProfile() {
-        JOptionPane.showMessageDialog(this,
-            "Profile: " + currentUsername + "\nRole: " + cap(currentRole),
-            "User Profile", JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    private void showUsers() {
-        JOptionPane.showMessageDialog(this,
-            "User management feature coming soon.",
-            "Users", JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    private void showSettings() {
-        JOptionPane.showMessageDialog(this,
-            "Settings feature coming soon.",
-            "Settings", JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    private void logout() {
-        int confirm = JOptionPane.showConfirmDialog(
-            this, "Are you sure you want to logout?",
-            "Logout", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-        if (confirm == JOptionPane.YES_OPTION) {
-            new login().setVisible(true);
-            dispose();
+    private void setActiveButton(JButton activeBtn) {
+        for (JButton btn : sidebarButtons) {
+            btn.repaint();
         }
     }
 
-    // ── Body ───────────────────────────────────────────────────────────────
+    private JButton createSidebarLogoutButton() {
+        JButton button = new JButton("Logout") {
+            @Override
+            protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-    private JPanel buildBody() {
-        JPanel body = new JPanel();
-        body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
-        body.setBackground(BG);
-        body.setBorder(new EmptyBorder(20, 24, 20, 24));
-        body.add(buildStatCards());
-        body.add(Box.createVerticalStrut(20));
-        body.add(buildTablePanel());
-        return body;
+                int w = getWidth();
+                int h = getHeight();
+
+                if (getModel().isPressed()) {
+                    g2.setColor(new Color(220, 53, 69, 180));
+                } else if (getModel().isRollover()) {
+                    g2.setColor(new Color(220, 53, 69, 200));
+                } else {
+                    g2.setColor(new Color(220, 53, 69, 100));
+                }
+                g2.fillRoundRect(4, 2, w - 8, h - 4, 10, 10);
+
+                g2.setColor(new Color(255, 150, 150));
+                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                int iconX = 16;
+                int iconY = h / 2;
+                g2.drawLine(iconX + 4, iconY - 4, iconX + 12, iconY - 4);
+                g2.drawLine(iconX + 8, iconY - 8, iconX + 12, iconY - 4);
+                g2.drawLine(iconX + 8, iconY, iconX + 12, iconY - 4);
+                g2.drawRect(iconX - 2, iconY - 10, 10, 16);
+
+                g2.setColor(new Color(255, 200, 200));
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 13));
+                FontMetrics fm = g2.getFontMetrics();
+                int textX = 48;
+                int textY = (h + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(getText(), textX, textY);
+
+                g2.dispose();
+            }
+        };
+
+        button.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        button.setForeground(WHITE);
+        button.setHorizontalAlignment(SwingConstants.LEFT);
+        button.setBorderPainted(false);
+        button.setFocusPainted(false);
+        button.setContentAreaFilled(false);
+        button.setOpaque(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+        button.setPreferredSize(new Dimension(220, 48));
+        button.setAlignmentX(Component.CENTER_ALIGNMENT);
+        button.addActionListener(e -> logout());
+        
+        return button;
     }
 
-    // ── Stat cards ─────────────────────────────────────────────────────────
+    // ── Dashboard Panel (Home) ──────────────────────────────────────────────
+    private JPanel buildDashboardPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBackground(PAGE_BG);
+        panel.setBorder(new EmptyBorder(20, 24, 20, 24));
+        
+        panel.add(buildWelcomeBanner());
+        panel.add(Box.createVerticalStrut(20));
+        panel.add(buildStatCards());
+        panel.add(Box.createVerticalStrut(24));
+        panel.add(buildTablePanel());
+        
+        return panel;
+    }
+
+    private JPanel buildWelcomeBanner() {
+        JPanel banner = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                GradientPaint gp = new GradientPaint(0, 0, new Color(45, 118, 200),
+                                                      getWidth(), 0, new Color(75, 150, 230));
+                g2.setPaint(gp);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
+                g2.dispose();
+            }
+        };
+        banner.setOpaque(false);
+        banner.setLayout(new BorderLayout());
+        banner.setBorder(new EmptyBorder(20, 28, 20, 28));
+        banner.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
+        banner.setPreferredSize(new Dimension(0, 100));
+
+        JPanel textPanel = new JPanel();
+        textPanel.setOpaque(false);
+        textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+
+        String greeting = "Good " + getTimeOfDay() + ", " + 
+            (currentUsername != null ? cap(currentUsername.split("_")[0]) : "User") + "!";
+        JLabel greetingLabel = new JLabel(greeting);
+        greetingLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        greetingLabel.setForeground(WHITE);
+
+        JLabel subLabel = new JLabel("Welcome back to Barangay E-Blotter System");
+        subLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        subLabel.setForeground(new Color(220, 235, 255));
+
+        textPanel.add(greetingLabel);
+        textPanel.add(Box.createVerticalStrut(4));
+        textPanel.add(subLabel);
+
+        banner.add(textPanel, BorderLayout.WEST);
+        
+        return banner;
+    }
+
+    private String getTimeOfDay() {
+        int hour = java.time.LocalTime.now().getHour();
+        if (hour < 12) return "Morning";
+        else if (hour < 18) return "Afternoon";
+        else return "Evening";
+    }
 
     private JPanel buildStatCards() {
         JPanel row = new JPanel(new GridLayout(1, 3, 20, 0));
@@ -530,126 +791,155 @@ public class dashboard extends JFrame {
         row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 140));
         row.setPreferredSize(new Dimension(0, 130));
 
-        long total      = blotterData.size();
-        long pending    = blotterData.stream()
-                            .filter(r -> "pending".equalsIgnoreCase(r[4].toString())).count();
-        long resolved   = blotterData.stream()
-                            .filter(r -> "resolved".equalsIgnoreCase(r[4].toString())).count();
+        long total = blotterData.size();
+        long pending = blotterData.stream()
+                .filter(r -> "pending".equalsIgnoreCase(r[4].toString())).count();
+        long resolved = blotterData.stream()
+                .filter(r -> "resolved".equalsIgnoreCase(r[4].toString())).count();
 
-        totalValueLabel      = new JLabel(String.valueOf(total));
-        pendingValueLabel    = new JLabel(String.valueOf(pending));
-        resolvedValueLabel   = new JLabel(String.valueOf(resolved));
+        totalValueLabel = new JLabel(String.valueOf(total));
+        pendingValueLabel = new JLabel(String.valueOf(pending));
+        resolvedValueLabel = new JLabel(String.valueOf(resolved));
 
-        row.add(statCard("TOTAL RECORDS",   totalValueLabel,    STAT_BLUE));
-        row.add(statCard("PENDING CASES",   pendingValueLabel,  STAT_ORANGE));
-        row.add(statCard("RESOLVED",        resolvedValueLabel, STAT_GREEN));
+        row.add(statCard("TOTAL RECORDS", totalValueLabel, STAT_BLUE, ""));
+        row.add(statCard("PENDING CASES", pendingValueLabel, STAT_ORANGE, ""));
+        row.add(statCard("RESOLVED", resolvedValueLabel, STAT_GREEN, ""));
         return row;
     }
 
-    private JPanel statCard(String label, JLabel valueLabel, Color accent) {
+    private JPanel statCard(String label, JLabel valueLabel, Color accent, String emoji) {
         JPanel card = new JPanel() {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
                                     RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(4, 5, getWidth()-6, getHeight()-6, 16, 16);
+                g2.setColor(WHITE);
+                g2.fillRoundRect(0, 0, getWidth()-4, getHeight()-4, 14, 14);
                 g2.setColor(accent);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
+                g2.fillRoundRect(0, 0, 6, getHeight()-4, 14, 14);
                 g2.dispose();
             }
         };
         card.setOpaque(false);
         card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
-        card.setBorder(new EmptyBorder(20, 22, 20, 22));
+        card.setBorder(new EmptyBorder(18, 28, 18, 20));
 
-        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 36));
-        valueLabel.setForeground(WHITE);
-        valueLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        valueLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        valueLabel.setMinimumSize(new Dimension(60, 40));
+        JPanel topRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        topRow.setOpaque(false);
+        
+        JLabel emojiLabel = new JLabel(emoji);
+        emojiLabel.setFont(new Font("Segoe UI", Font.PLAIN, 24));
+        topRow.add(emojiLabel);
+
+        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 42));
+        valueLabel.setForeground(TEXT_PRI);
+        valueLabel.setHorizontalAlignment(SwingConstants.LEFT);
+        valueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel lbl = new JLabel(label);
-        lbl.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        lbl.setForeground(WHITE);
-        lbl.setAlignmentX(Component.CENTER_ALIGNMENT);
+        lbl.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        lbl.setForeground(TEXT_SEC);
+        lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        card.add(Box.createVerticalStrut(10));
+        card.add(topRow);
+        card.add(Box.createVerticalStrut(8));
         card.add(valueLabel);
-        card.add(Box.createVerticalStrut(12));
+        card.add(Box.createVerticalStrut(4));
         card.add(lbl);
-        card.add(Box.createVerticalStrut(10));
+        
         return card;
     }
 
-    // ── Table panel ────────────────────────────────────────────────────────
-
     private JPanel buildTablePanel() {
-        JPanel panel = new JPanel(new BorderLayout(0, 12));
+        JPanel panel = new JPanel(new BorderLayout(0, 16));
         panel.setOpaque(false);
 
         JPanel toolbar = new JPanel(new BorderLayout(10, 0));
         toolbar.setOpaque(false);
-        toolbar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        toolbar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
 
         addBtn = createStyledButton("+ New Blotter", BLUE, BLUE_HOVER, WHITE);
-        addBtn.addActionListener(e -> showAddDialog());
+        addBtn.addActionListener(e -> {
+            if (isSecretary()) {
+                refreshAddBlotterPanel();
+                cardLayout.show(cardPanel, "addBlotter");
+                setActiveButton(addBlotterBtn);
+            } else {
+                JOptionPane.showMessageDialog(this,
+                    "Only secretaries can add new blotter entries.",
+                    "Access Denied", JOptionPane.WARNING_MESSAGE);
+            }
+        });
 
-        // History Icon Button
-        historyBtn = new JButton() {
+        JPanel searchBar = createSearchBar();
+        
+        searchBtn = createStyledButton("Search", BLUE, BLUE_HOVER, WHITE);
+        searchBtn.addActionListener(e -> filterTable());
+
+        JPanel leftTools = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        leftTools.setOpaque(false);
+        if (isSecretary()) {
+            leftTools.add(addBtn);
+        }
+
+        JPanel rightTools = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        rightTools.setOpaque(false);
+        rightTools.add(searchBar);
+        rightTools.add(searchBtn);
+
+        toolbar.add(leftTools, BorderLayout.WEST);
+        toolbar.add(rightTools, BorderLayout.EAST);
+
+        String[] cols = {"ID", "Complainant", "Respondent", "Date", "Status", "Action"};
+        tableModel = new DefaultTableModel(null, cols) {
+            @Override public boolean isCellEditable(int row, int col) { return col == 5; }
+        };
+        
+        for (Object[] row : blotterData) {
+            String sd = "pending".equalsIgnoreCase(row[4].toString()) ? "Pending" : "Resolved";
+            tableModel.addRow(new Object[]{row[0], row[1], row[2], row[3], sd, "View"});
+        }
+
+        table = createStyledTable();
+        
+        JScrollPane scroll = new JScrollPane(table);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getViewport().setBackground(WHITE);
+        scroll.setBackground(WHITE);
+
+        JPanel tableContainer = new JPanel(new BorderLayout()) {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                
-                int w = getWidth();
-                int h = getHeight();
-                
-                // Button background
-                if (getModel().isPressed()) {
-                    g2.setColor(BLUE_HOVER.darker());
-                } else if (getModel().isRollover()) {
-                    g2.setColor(BLUE_HOVER);
-                } else {
-                    g2.setColor(BLUE);
-                }
-                g2.fillRoundRect(0, 0, w, h, 8, 8);
-                
-                // Draw clock icon
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(4, 5, getWidth()-6, getHeight()-6, 16, 16);
                 g2.setColor(WHITE);
-                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                
-                int centerX = w / 2;
-                int centerY = h / 2;
-                int radius = 12;
-                
-                // Clock circle
-                g2.drawOval(centerX - radius, centerY - radius, radius * 2, radius * 2);
-                
-                // Clock hands
-                g2.drawLine(centerX, centerY, centerX, centerY - 7);  // Minute hand
-                g2.drawLine(centerX, centerY, centerX + 5, centerY - 3);  // Hour hand
-                
+                g2.fillRoundRect(0, 0, getWidth()-4, getHeight()-4, 14, 14);
+                g2.setColor(BORDER_CLR);
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth()-5, getHeight()-5, 14, 14);
                 g2.dispose();
             }
-            
-            @Override public Dimension getPreferredSize() {
-                return new Dimension(42, 38);
-            }
-            
-            @Override public boolean isOpaque() {
-                return false;
-            }
         };
-        historyBtn.setBorderPainted(false);
-        historyBtn.setFocusPainted(false);
-        historyBtn.setContentAreaFilled(false);
-        historyBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        historyBtn.setToolTipText("View Complete History");
-        historyBtn.addActionListener(e -> showHistoryFrame());
+        tableContainer.setOpaque(false);
+        tableContainer.setBorder(new EmptyBorder(4, 4, 4, 4));
+        tableContainer.add(scroll, BorderLayout.CENTER);
 
+        panel.add(toolbar, BorderLayout.NORTH);
+        panel.add(tableContainer, BorderLayout.CENTER);
+        
+        return panel;
+    }
+
+    private JPanel createSearchBar() {
         JPanel searchBar = new JPanel(new BorderLayout(8, 0));
         searchBar.setBackground(WHITE);
         searchBar.setBorder(new CompoundBorder(
             new RoundedBorder(BORDER_CLR, 1, 8),
             new EmptyBorder(0, 12, 0, 0)));
+        searchBar.setPreferredSize(new Dimension(220, 38));
 
         JLabel searchIcon = new JLabel("\uD83D\uDD0D");
         searchIcon.setFont(new Font("Segoe UI", Font.PLAIN, 14));
@@ -680,36 +970,12 @@ public class dashboard extends JFrame {
 
         searchBar.add(searchIcon, BorderLayout.WEST);
         searchBar.add(searchField, BorderLayout.CENTER);
+        
+        return searchBar;
+    }
 
-        searchBtn = createStyledButton("Search", BLUE, BLUE_HOVER, WHITE);
-        searchBtn.addActionListener(e -> filterTable());
-
-        JPanel leftTools  = new JPanel(new FlowLayout(FlowLayout.LEFT,  8, 0));
-        leftTools.setOpaque(false);
-        // Only secretary can add new blotters
-        if (isSecretary()) {
-            leftTools.add(addBtn);
-        }
-        leftTools.add(historyBtn);
-
-        JPanel rightTools = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        rightTools.setOpaque(false);
-        rightTools.add(searchBar);
-        rightTools.add(searchBtn);
-
-        toolbar.add(leftTools,  BorderLayout.WEST);
-        toolbar.add(rightTools, BorderLayout.EAST);
-
-        String[] cols = {"ID", "Complainant", "Respondent", "Date", "Status", "Action"};
-        tableModel = new DefaultTableModel(null, cols) {
-            @Override public boolean isCellEditable(int row, int col) { return col == 5; }
-        };
-        for (Object[] row : blotterData) {
-            String sd = "pending".equalsIgnoreCase(row[4].toString()) ? "Pending" : "Resolved";
-            tableModel.addRow(new Object[]{row[0], row[1], row[2], row[3], sd, "View"});
-        }
-
-        table = new JTable(tableModel) {
+    private JTable createStyledTable() {
+        JTable tbl = new JTable(tableModel) {
             @Override public Component prepareRenderer(TableCellRenderer r, int row, int col) {
                 Component c = super.prepareRenderer(r, row, col);
                 if (!isRowSelected(row)) {
@@ -723,44 +989,22 @@ public class dashboard extends JFrame {
             }
         };
 
-        table.addMouseListener(new MouseAdapter() {
+        tbl.addMouseListener(new MouseAdapter() {
             @Override public void mouseClicked(MouseEvent evt) {
-                int col = table.columnAtPoint(evt.getPoint());
-                int row = table.rowAtPoint(evt.getPoint());
-                // Only secretary can update status by clicking the status column
+                int col = tbl.columnAtPoint(evt.getPoint());
+                int row = tbl.rowAtPoint(evt.getPoint());
                 if (col == 4 && row >= 0 && isSecretary()) showUpdateStatusDialog(row);
             }
         });
 
-        styleTable();
+        tbl.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        tbl.setRowHeight(48);
+        tbl.setShowGrid(false);
+        tbl.setIntercellSpacing(new Dimension(0, 0));
+        tbl.setSelectionBackground(BLUE_LIGHT);
+        tbl.setSelectionForeground(TEXT_PRI);
 
-        JScrollPane scroll = new JScrollPane(table);
-        scroll.setBorder(BorderFactory.createEmptyBorder());
-        scroll.getViewport().setBackground(WHITE);
-        scroll.setBackground(WHITE);
-        scroll.getViewport().setScrollMode(JViewport.SIMPLE_SCROLL_MODE);
-
-        JPanel tableContainer = new JPanel(new BorderLayout());
-        tableContainer.setBackground(WHITE);
-        tableContainer.setBorder(new RoundedBorder(BORDER_CLR, 1, 14));
-        tableContainer.add(scroll, BorderLayout.CENTER);
-
-        panel.add(toolbar,         BorderLayout.NORTH);
-        panel.add(tableContainer,  BorderLayout.CENTER);
-        return panel;
-    }
-
-    private void styleTable() {
-        table.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        table.setRowHeight(48);
-        table.setShowGrid(false);
-        table.setIntercellSpacing(new Dimension(0, 0));
-        table.setSelectionBackground(BLUE_LIGHT);
-        table.setSelectionForeground(TEXT_PRI);
-        table.setCellSelectionEnabled(true);
-        table.setRowSelectionAllowed(true);
-
-        JTableHeader header = table.getTableHeader();
+        JTableHeader header = tbl.getTableHeader();
         header.setFont(new Font("Segoe UI", Font.BOLD, 12));
         header.setBackground(new Color(240, 245, 250));
         header.setForeground(TEXT_PRI);
@@ -769,11 +1013,11 @@ public class dashboard extends JFrame {
         ((DefaultTableCellRenderer) header.getDefaultRenderer())
                 .setHorizontalAlignment(SwingConstants.LEFT);
 
-        int[] widths = {80, 160, 160, 100, 90, 220};
+        int[] widths = {80, 180, 180, 110, 100, 120};
         for (int i = 0; i < widths.length; i++)
-            table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
+            tbl.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
 
-        table.getColumnModel().getColumn(0).setCellRenderer(
+        tbl.getColumnModel().getColumn(0).setCellRenderer(
             (t, val, sel, foc, row, col) -> {
                 JLabel l = new JLabel(val == null ? "" : "#" + val);
                 l.setFont(new Font("Segoe UI", Font.BOLD, 13));
@@ -784,10 +1028,10 @@ public class dashboard extends JFrame {
                 return l;
             });
 
-        table.getColumnModel().getColumn(4).setCellRenderer(
+        tbl.getColumnModel().getColumn(4).setCellRenderer(
             (t, val, sel, foc, row, col) -> {
-                String status    = val == null ? "" : val.toString();
-                boolean isPending = "pending".equalsIgnoreCase(status);
+                String status = val == null ? "" : val.toString();
+                boolean isPending = "Pending".equals(status);
 
                 JLabel l = new JLabel(status);
                 l.setFont(new Font("Segoe UI", Font.BOLD, 11));
@@ -818,12 +1062,415 @@ public class dashboard extends JFrame {
                 return wrap;
             });
 
-        table.getColumnModel().getColumn(5).setCellRenderer(new ButtonRenderer());
-        table.getColumnModel().getColumn(5).setCellEditor(new ButtonEditor(new JCheckBox()));
+        tbl.getColumnModel().getColumn(5).setCellRenderer(new ButtonRenderer());
+        tbl.getColumnModel().getColumn(5).setCellEditor(new ButtonEditor(new JCheckBox()));
+
+        return tbl;
     }
 
-    // ── Button renderer / editor ───────────────────────────────────────────
+    // ── Add Blotter Panel Wrapper ──────────────────────────────────────────
+    private JPanel buildAddBlotterPanelWrapper() {
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setBackground(PAGE_BG);
+        return wrapper;
+    }
 
+    private void refreshAddBlotterPanel() {
+        addBlotterPanel.removeAll();
+        
+        JPanel content = new JPanel(new BorderLayout());
+        content.setBackground(PAGE_BG);
+        
+        // Header
+        content.add(buildAddBlotterHeader(), BorderLayout.NORTH);
+        
+        // Main content - Create AddBlotterPanel without dialog
+        currentAddBlotterPanel = new AddBlotterPanel(
+            null,
+            this::getConnection,
+            blotterData.size() + 1,
+            () -> {
+                loadBlotterData();
+                refreshTableAndStats();
+                refreshHistoryPanel();
+                cardLayout.show(cardPanel, "dashboard");
+                setActiveButton(homeBtn);
+                JOptionPane.showMessageDialog(this,
+                    "Blotter entry saved successfully!",
+                    "Success", JOptionPane.INFORMATION_MESSAGE);
+            }
+        );
+        currentAddBlotterPanel.setBackground(PAGE_BG);
+        
+        content.add(currentAddBlotterPanel, BorderLayout.CENTER);
+        
+        addBlotterPanel.add(content);
+        addBlotterPanel.revalidate();
+        addBlotterPanel.repaint();
+    }
+
+    private JPanel buildAddBlotterHeader() {
+        JPanel header = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                // Shadow for floating effect
+                g2.setColor(new Color(0, 0, 0, 20));
+                g2.fillRoundRect(4, 4, getWidth() - 6, getHeight() - 6, 16, 16);
+
+                // Gradient background
+                GradientPaint gp = new GradientPaint(0, 0, BLUE_DARK, getWidth(), 0, new Color(45, 80, 130));
+                g2.setPaint(gp);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
+
+                // Subtle border
+                g2.setColor(new Color(255, 255, 255, 30));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth() - 6, getHeight() - 6, 14, 14);
+
+                g2.dispose();
+            }
+        };
+        header.setOpaque(false);
+        header.setBorder(new EmptyBorder(16, 24, 16, 24));
+        header.setPreferredSize(new Dimension(0, 70));
+
+        JButton backBtn = new JButton("← Back to Dashboard");
+        backBtn.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        backBtn.setForeground(WHITE);
+        backBtn.setContentAreaFilled(false);
+        backBtn.setBorderPainted(false);
+        backBtn.setFocusPainted(false);
+        backBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        backBtn.addActionListener(e -> {
+            cardLayout.show(cardPanel, "dashboard");
+            setActiveButton(homeBtn);
+        });
+
+        JLabel titleLabel = new JLabel("Add New Blotter Entry");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(WHITE);
+
+        header.add(backBtn, BorderLayout.WEST);
+        header.add(titleLabel, BorderLayout.CENTER);
+        
+        return header;
+    }
+
+    // ── History Panel Wrapper ───────────────────────────────────────────────
+    private JPanel buildHistoryPanelWrapper() {
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setBackground(PAGE_BG);
+        return wrapper;
+    }
+
+    private void refreshHistoryPanel() {
+        historyPanel.removeAll();
+        
+        JPanel content = new JPanel(new BorderLayout());
+        content.setBackground(PAGE_BG);
+        
+        // Header
+        content.add(buildHistoryHeader(), BorderLayout.NORTH);
+        
+        // Main content
+        content.add(buildHistoryContent(), BorderLayout.CENTER);
+        
+        historyPanel.add(content);
+        historyPanel.revalidate();
+        historyPanel.repaint();
+    }
+
+    private JPanel buildHistoryHeader() {
+        JPanel header = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                // Shadow for floating effect
+                g2.setColor(new Color(0, 0, 0, 20));
+                g2.fillRoundRect(4, 4, getWidth() - 6, getHeight() - 6, 16, 16);
+
+                // Gradient background
+                GradientPaint gp = new GradientPaint(0, 0, BLUE_DARK, getWidth(), 0, new Color(45, 80, 130));
+                g2.setPaint(gp);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
+
+                // Subtle border
+                g2.setColor(new Color(255, 255, 255, 30));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth() - 6, getHeight() - 6, 14, 14);
+
+                g2.dispose();
+            }
+        };
+        header.setOpaque(false);
+        header.setBorder(new EmptyBorder(16, 24, 16, 24));
+        header.setPreferredSize(new Dimension(0, 80));
+
+        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        leftPanel.setOpaque(false);
+
+        JButton backBtn = new JButton("← Back to Dashboard");
+        backBtn.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        backBtn.setForeground(WHITE);
+        backBtn.setContentAreaFilled(false);
+        backBtn.setBorderPainted(false);
+        backBtn.setFocusPainted(false);
+        backBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        backBtn.addActionListener(e -> {
+            cardLayout.show(cardPanel, "dashboard");
+            setActiveButton(homeBtn);
+        });
+
+        JLabel titleLabel = new JLabel("Blotter History — Complete Records");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(WHITE);
+
+        leftPanel.add(backBtn);
+        leftPanel.add(titleLabel);
+
+        JPanel statsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 20, 0));
+        statsPanel.setOpaque(false);
+
+        long total = blotterData.size();
+        long pending = blotterData.stream().filter(r -> "pending".equalsIgnoreCase(r[4].toString())).count();
+        long resolved = blotterData.stream().filter(r -> "resolved".equalsIgnoreCase(r[4].toString())).count();
+
+        statsPanel.add(createHeaderStat("Total", String.valueOf(total), STAT_BLUE));
+        statsPanel.add(createHeaderStat("Pending", String.valueOf(pending), STAT_ORANGE));
+        statsPanel.add(createHeaderStat("Resolved", String.valueOf(resolved), STAT_GREEN));
+
+        header.add(leftPanel, BorderLayout.WEST);
+        header.add(statsPanel, BorderLayout.EAST);
+        
+        return header;
+    }
+
+    private JPanel createHeaderStat(String label, String value, Color accent) {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+
+        JLabel valueLabel = new JLabel(value);
+        valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        valueLabel.setForeground(WHITE);
+        valueLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel labelLabel = new JLabel(label);
+        labelLabel.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+        labelLabel.setForeground(TEXT_LIGHT);
+        labelLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        panel.add(valueLabel);
+        panel.add(Box.createVerticalStrut(2));
+        panel.add(labelLabel);
+
+        return panel;
+    }
+
+    private JPanel buildHistoryContent() {
+        JPanel content = new JPanel(new BorderLayout(0, 16));
+        content.setBackground(PAGE_BG);
+        content.setBorder(new EmptyBorder(20, 24, 20, 24));
+        
+        content.add(buildHistoryFilterBar(), BorderLayout.NORTH);
+        content.add(buildHistoryTableContainer(), BorderLayout.CENTER);
+        
+        return content;
+    }
+
+    private JPanel buildHistoryFilterBar() {
+        JPanel filterCard = new JPanel(new BorderLayout(12, 0)) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(3, 4, getWidth()-4, getHeight()-4, 12, 12);
+                g2.setColor(WHITE);
+                g2.fillRoundRect(0, 0, getWidth()-4, getHeight()-4, 10, 10);
+                g2.setColor(BORDER_CLR);
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth()-5, getHeight()-5, 10, 10);
+                g2.dispose();
+            }
+        };
+        filterCard.setOpaque(false);
+        filterCard.setBorder(new EmptyBorder(12, 20, 12, 20));
+        filterCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
+        filterCard.setPreferredSize(new Dimension(0, 70));
+
+        JPanel filterLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        filterLeft.setOpaque(false);
+
+        JLabel filterLabel = new JLabel("Status:");
+        filterLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        filterLabel.setForeground(TEXT_PRI);
+
+        JComboBox<String> statusFilter = new JComboBox<>(new String[]{"All Records", "Pending", "Resolved"});
+        statusFilter.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        statusFilter.setPreferredSize(new Dimension(130, 36));
+        statusFilter.setBackground(WHITE);
+
+        JLabel timeLabel = new JLabel("Period:");
+        timeLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        timeLabel.setForeground(TEXT_PRI);
+
+        JComboBox<String> timeFilter = new JComboBox<>(new String[]{
+            "All Time", "Today", "Last 7 Days", "Last 30 Days"
+        });
+        timeFilter.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        timeFilter.setPreferredSize(new Dimension(130, 36));
+        timeFilter.setBackground(WHITE);
+
+        filterLeft.add(filterLabel);
+        filterLeft.add(statusFilter);
+        filterLeft.add(timeLabel);
+        filterLeft.add(timeFilter);
+
+        JPanel filterRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        filterRight.setOpaque(false);
+
+        JPanel searchBar = new JPanel(new BorderLayout(10, 0));
+        searchBar.setBackground(WHITE);
+        searchBar.setBorder(new CompoundBorder(
+            new RoundedBorder(BORDER_CLR, 1, 8),
+            new EmptyBorder(0, 12, 0, 0)));
+        searchBar.setPreferredSize(new Dimension(220, 36));
+
+        JLabel searchIcon = new JLabel("\uD83D\uDD0D");
+        searchIcon.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchIcon.setForeground(TEXT_SEC);
+
+        JTextField historySearchField = new JTextField("Search history...");
+        historySearchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        historySearchField.setForeground(TEXT_SEC);
+        historySearchField.setBorder(null);
+        historySearchField.setOpaque(false);
+
+        searchBar.add(searchIcon, BorderLayout.WEST);
+        searchBar.add(historySearchField, BorderLayout.CENTER);
+
+        JButton exportBtn = createCardButton("Export", STAT_GREEN, new Color(40, 150, 100), WHITE);
+        exportBtn.setPreferredSize(new Dimension(100, 36));
+        exportBtn.addActionListener(e -> exportHistoryData());
+
+        filterRight.add(searchBar);
+        filterRight.add(exportBtn);
+
+        filterCard.add(filterLeft, BorderLayout.WEST);
+        filterCard.add(filterRight, BorderLayout.EAST);
+
+        return filterCard;
+    }
+
+    private JPanel buildHistoryTableContainer() {
+        String[] columns = {"ID", "Complainant", "Respondent", "Type", "Date", "Status", "Description"};
+        DefaultTableModel historyModel = new DefaultTableModel(null, columns) {
+            @Override public boolean isCellEditable(int row, int col) { return false; }
+        };
+
+        for (Object[] row : blotterData) {
+            String statusDisplay = "pending".equalsIgnoreCase(row[4].toString()) ? "Pending" : "Resolved";
+            String description = row[7] != null ? row[7].toString() : "";
+            if (description.length() > 50) {
+                description = description.substring(0, 47) + "...";
+            }
+            historyModel.addRow(new Object[]{
+                "#" + row[0], row[1], row[2], 
+                row[6] != null ? row[6].toString() : "N/A",
+                row[3], statusDisplay, description
+            });
+        }
+
+        JTable historyTable = new JTable(historyModel) {
+            @Override public Component prepareRenderer(TableCellRenderer r, int row, int col) {
+                Component c = super.prepareRenderer(r, row, col);
+                if (!isRowSelected(row)) {
+                    c.setBackground(row % 2 == 0 ? WHITE : new Color(248, 250, 252));
+                }
+                if (c instanceof JComponent jc) {
+                    jc.setBorder(new EmptyBorder(8, 12, 8, 12));
+                }
+                return c;
+            }
+        };
+
+        historyTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        historyTable.setRowHeight(42);
+        historyTable.setShowGrid(false);
+        historyTable.setIntercellSpacing(new Dimension(0, 0));
+        historyTable.setSelectionBackground(BLUE_LIGHT);
+
+        JTableHeader header = historyTable.getTableHeader();
+        header.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        header.setBackground(new Color(240, 245, 250));
+        header.setForeground(TEXT_PRI);
+        header.setBorder(new MatteBorder(0, 0, 1, 0, BORDER_CLR));
+        header.setPreferredSize(new Dimension(0, 42));
+
+        historyTable.addMouseListener(new MouseAdapter() {
+            @Override public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int row = historyTable.getSelectedRow();
+                    if (row >= 0) {
+                        viewBlotterDialog.show(row);
+                    }
+                }
+            }
+        });
+
+        JScrollPane scroll = new JScrollPane(historyTable);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getViewport().setBackground(WHITE);
+
+        JPanel container = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(4, 5, getWidth()-6, getHeight()-6, 16, 16);
+                g2.setColor(WHITE);
+                g2.fillRoundRect(0, 0, getWidth()-4, getHeight()-4, 14, 14);
+                g2.setColor(BORDER_CLR);
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth()-5, getHeight()-5, 14, 14);
+                g2.dispose();
+            }
+        };
+        container.setOpaque(false);
+        container.setBorder(new EmptyBorder(4, 4, 4, 4));
+        container.add(scroll, BorderLayout.CENTER);
+
+        return container;
+    }
+
+    private void exportHistoryData() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Export History Data");
+        fileChooser.setSelectedFile(new java.io.File("blotter_history_" +
+            LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".csv"));
+
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            try (java.io.PrintWriter writer = new java.io.PrintWriter(fileChooser.getSelectedFile())) {
+                writer.println("ID,Complainant,Respondent,Complaint Type,Date,Status,Description,Address");
+                for (Object[] row : blotterData) {
+                    writer.printf("\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"%n",
+                        row[0], row[1], row[2], row[6], row[3], row[4], row[7], row[5]);
+                }
+                JOptionPane.showMessageDialog(this,
+                    "History data exported successfully!",
+                    "Export Complete", JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(this,
+                    "Error exporting data: " + ex.getMessage(),
+                    "Export Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    // ── Button Renderer/Editor ─────────────────────────────────────────────
     class ButtonRenderer extends JPanel implements TableCellRenderer {
         private final JButton viewBtn;
         private final JButton printBtn;
@@ -832,7 +1479,7 @@ public class dashboard extends JFrame {
             setOpaque(true);
             setLayout(new FlowLayout(FlowLayout.LEFT, 6, 6));
             
-            viewBtn  = createActionButton("View", BLUE, new Color(230, 242, 255));
+            viewBtn = createActionButton("View", BLUE, new Color(230, 242, 255));
             printBtn = createActionButton("Print", STAT_GREEN, new Color(230, 245, 239));
             
             add(viewBtn);
@@ -862,17 +1509,17 @@ public class dashboard extends JFrame {
             panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
             panel.setOpaque(true);
             
-            viewBtn  = createActionButton("View", BLUE, new Color(230, 242, 255));
+            viewBtn = createActionButton("View", BLUE, new Color(230, 242, 255));
             printBtn = createActionButton("Print", STAT_GREEN, new Color(230, 245, 239));
             
             viewBtn.addActionListener(e -> {
                 stopCellEditing();
-                SwingUtilities.invokeLater(() -> viewRecord(currentRow));
+                SwingUtilities.invokeLater(() -> viewBlotterDialog.show(currentRow));
             });
             
             printBtn.addActionListener(e -> {
                 stopCellEditing();
-                SwingUtilities.invokeLater(() -> printRecord(currentRow));
+                SwingUtilities.invokeLater(() -> printBlotterFrame.show(currentRow));
             });
             
             panel.add(viewBtn);
@@ -935,51 +1582,111 @@ public class dashboard extends JFrame {
         return button;
     }
 
-    // ── Delegated feature methods ──────────────────────────────────────────
-
-    private void viewRecord(int row) {
-        viewBlotterDialog.show(row);
-    }
-
-    private void printRecord(int row) {
-        printBlotterFrame.show(row);
-    }
-
-    private void showAddDialog() {
-        JDialog dialog = new JDialog(this, "Add New Blotter", true);
-        dialog.setSize(820, 720);
-        dialog.setMinimumSize(new Dimension(580, 500));
-        dialog.setLocationRelativeTo(this);
-        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
-
-        AddBlotterPanel addPanel = new AddBlotterPanel(
-            dialog,
-            this::getConnection,
-            blotterData.size() + 1,
-            () -> {
-                loadBlotterData();
-                refreshTableAndStats();
+    private JButton createStyledButton(String text, Color bg, Color hover, Color fg) {
+        JButton b = new JButton(text) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                                    RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(getModel().isRollover() ? hover : bg);
+                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                g2.setColor(fg);
+                g2.setFont(getFont());
+                FontMetrics fm = g2.getFontMetrics();
+                g2.drawString(getText(),
+                    (getWidth() - fm.stringWidth(getText())) / 2,
+                    (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
+                g2.dispose();
             }
-        );
 
-        dialog.setContentPane(addPanel);
-        dialog.setVisible(true);
+            @Override public Insets getInsets() { return new Insets(0, 0, 0, 0); }
+        };
+        b.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        b.setForeground(fg);
+        b.setPreferredSize(new Dimension(110, 38));
+        b.setMargin(new Insets(0, 0, 0, 0));
+        b.setBorderPainted(false);
+        b.setContentAreaFilled(false);
+        b.setFocusPainted(false);
+        b.setOpaque(false);
+        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        return b;
     }
 
-    private void showHistoryFrame() {
-        HistoryFrame historyFrame = new HistoryFrame(this, blotterData, this::viewRecord);
-        historyFrame.show();
+    private JButton createCardButton(String text, Color bg, Color hover, Color fg) {
+        JButton btn = new JButton(text) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                int w = getWidth();
+                int h = getHeight();
+                
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(2, 3, w - 2, h - 2, 10, 10);
+                
+                if (getModel().isPressed()) {
+                    g2.setColor(hover.darker());
+                } else if (getModel().isRollover()) {
+                    g2.setColor(hover);
+                } else {
+                    g2.setColor(bg);
+                }
+                g2.fillRoundRect(0, 0, w - 2, h - 2, 10, 10);
+                
+                g2.setColor(fg);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                FontMetrics fm = g2.getFontMetrics();
+                int textX = (w - fm.stringWidth(getText())) / 2;
+                int textY = (h + fm.getAscent() - fm.getDescent()) / 2;
+                g2.drawString(getText(), textX, textY);
+                
+                g2.dispose();
+            }
+        };
+        
+        btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        btn.setForeground(fg);
+        btn.setContentAreaFilled(false);
+        btn.setBorderPainted(false);
+        btn.setFocusPainted(false);
+        btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        btn.setPreferredSize(new Dimension(100, 36));
+        return btn;
     }
 
-    // ── Status update ──────────────────────────────────────────────────────
+    // ── Search/Filter ─────────────────────────────────────────────────────
+    private void filterTable() {
+        String query = searchField.getText().toLowerCase().trim();
+        tableModel.setRowCount(0);
+        for (Object[] row : blotterData) {
+            if (query.isEmpty() || query.equals("search blotter...")) {
+                String sd = "pending".equalsIgnoreCase(row[4].toString()) ? "Pending" : "Resolved";
+                tableModel.addRow(new Object[]{row[0], row[1], row[2], row[3], sd, "View"});
+            } else {
+                boolean match = false;
+                for (int i = 0; i < 4; i++) {
+                    if (row[i] != null && row[i].toString().toLowerCase().contains(query)) {
+                        match = true;
+                        break;
+                    }
+                }
+                if (match) {
+                    String sd = "pending".equalsIgnoreCase(row[4].toString()) ? "Pending" : "Resolved";
+                    tableModel.addRow(new Object[]{row[0], row[1], row[2], row[3], sd, "View"});
+                }
+            }
+        }
+    }
 
+    // ── Status Update ─────────────────────────────────────────────────────
     private void showUpdateStatusDialog(int selectedRow) {
         if (selectedRow < 0 || selectedRow >= tableModel.getRowCount()) return;
 
-        String blotterNum   = tableModel.getValueAt(selectedRow, 0).toString();
+        String blotterNum = tableModel.getValueAt(selectedRow, 0).toString();
         String currentStatus = tableModel.getValueAt(selectedRow, 4).toString();
 
-        if ("resolved".equalsIgnoreCase(currentStatus)) {
+        if ("Resolved".equals(currentStatus)) {
             JOptionPane.showMessageDialog(this,
                 "This case is already resolved and cannot be edited.",
                 "Case Locked", JOptionPane.INFORMATION_MESSAGE);
@@ -1001,8 +1708,7 @@ public class dashboard extends JFrame {
         titleLabel.setForeground(TEXT_PRI);
         titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        String displayStatus = "pending".equalsIgnoreCase(currentStatus) ? "Pending" : "Resolved";
-        JLabel currentLabel  = new JLabel("Current Status: " + displayStatus);
+        JLabel currentLabel = new JLabel("Current Status: " + currentStatus);
         currentLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         currentLabel.setForeground(TEXT_SEC);
         currentLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -1012,12 +1718,11 @@ public class dashboard extends JFrame {
         newStatusLabel.setForeground(TEXT_PRI);
         newStatusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JComboBox<String> statusCombo = new JComboBox<>(new String[]{"pending", "resolved"});
-        statusCombo.setSelectedItem(currentStatus.toLowerCase());
+        JComboBox<String> statusCombo = new JComboBox<>(new String[]{"Pending", "Resolved"});
+        statusCombo.setSelectedItem(currentStatus);
         statusCombo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         statusCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
         statusCombo.setBackground(BLUE_LIGHT);
-        statusCombo.setForeground(TEXT_PRI);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
         buttonPanel.setBackground(WHITE);
@@ -1026,8 +1731,8 @@ public class dashboard extends JFrame {
         JButton saveBtn = createStyledButton("Save", BLUE, BLUE_HOVER, WHITE);
         saveBtn.addActionListener(e -> {
             String newStatus = (String) statusCombo.getSelectedItem();
-            if (newStatus != null && !newStatus.equalsIgnoreCase(currentStatus)) {
-                updateStatus(selectedRow, newStatus, blotterNum);
+            if (newStatus != null && !newStatus.equals(currentStatus)) {
+                updateStatus(selectedRow, newStatus.toLowerCase(), blotterNum);
                 dialog.dispose();
             } else {
                 JOptionPane.showMessageDialog(dialog,
@@ -1066,7 +1771,7 @@ public class dashboard extends JFrame {
                 try (Connection conn = getConnection()) {
                     String update = "UPDATE blotter SET status = ? WHERE blotter_id = ?";
                     try (PreparedStatement pstmt = conn.prepareStatement(update)) {
-                        pstmt.setString(1, newStatus.toLowerCase());
+                        pstmt.setString(1, newStatus);
                         pstmt.setString(2, blotterNumber);
                         pstmt.executeUpdate();
                     }
@@ -1078,22 +1783,18 @@ public class dashboard extends JFrame {
             protected void done() {
                 try {
                     if (get()) {
-                        String display = "pending".equalsIgnoreCase(newStatus)
-                                         ? "Pending" : "Resolved";
+                        String display = "pending".equalsIgnoreCase(newStatus) ? "Pending" : "Resolved";
                         if (row < blotterData.size()) blotterData.get(row)[4] = newStatus;
                         tableModel.setValueAt(display, row, 4);
                         updateStatCards();
+                        refreshHistoryPanel();
                         JOptionPane.showMessageDialog(dashboard.this,
                             "Status updated to: " + display, "Success",
                             JOptionPane.INFORMATION_MESSAGE);
                     }
-                } catch (InterruptedException | java.util.concurrent.ExecutionException e) {
-                    String msg = "Error updating status";
-                    if (e.getCause() != null && e.getCause().getMessage() != null)
-                        msg += ": " + e.getCause().getMessage();
-                    else if (e.getMessage() != null)
-                        msg += ": " + e.getMessage();
-                    JOptionPane.showMessageDialog(dashboard.this, msg,
+                } catch (Exception e) {
+                    JOptionPane.showMessageDialog(dashboard.this,
+                        "Error updating status: " + e.getMessage(),
                         "Error", JOptionPane.ERROR_MESSAGE);
                 } finally {
                     setAllButtonsEnabled(true);
@@ -1103,66 +1804,72 @@ public class dashboard extends JFrame {
         }.execute();
     }
 
-    // ── Search ─────────────────────────────────────────────────────────────
+    // ── Sidebar Actions ───────────────────────────────────────────────────
+    private void showProfile() {
+        JDialog dialog = new JDialog(this, "User Profile", true);
+        dialog.setSize(400, 300);
+        dialog.setLocationRelativeTo(this);
+        
+        JPanel content = new JPanel();
+        content.setBackground(WHITE);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(new EmptyBorder(30, 30, 30, 30));
+        
+        JLabel iconLabel = new JLabel("👤");
+        iconLabel.setFont(new Font("Segoe UI", Font.PLAIN, 48));
+        iconLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        JLabel nameLabel = new JLabel(currentUsername);
+        nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        nameLabel.setForeground(TEXT_PRI);
+        nameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        JLabel roleLabel = new JLabel("Role: " + cap(currentRole));
+        roleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        roleLabel.setForeground(TEXT_SEC);
+        roleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        
+        content.add(iconLabel);
+        content.add(Box.createVerticalStrut(20));
+        content.add(nameLabel);
+        content.add(Box.createVerticalStrut(8));
+        content.add(roleLabel);
+        
+        dialog.setContentPane(content);
+        dialog.setVisible(true);
+    }
 
-    private void filterTable() {
-        String query = searchField.getText().toLowerCase().trim();
-        tableModel.setRowCount(0);
-        for (Object[] row : blotterData) {
-            if (query.isEmpty() || query.equals("search blotter...")) {
-                String sd = "pending".equalsIgnoreCase(row[4].toString()) ? "Pending" : "Resolved";
-                tableModel.addRow(new Object[]{row[0], row[1], row[2], row[3], sd, "View"});
-            } else {
-                boolean match = false;
-                for (int i = 0; i < 4; i++) {
-                    if (row[i] != null && row[i].toString().toLowerCase().contains(query)) {
-                        match = true;
-                        break;
-                    }
-                }
-                if (match) {
-                    String sd = "pending".equalsIgnoreCase(row[4].toString()) ? "Pending" : "Resolved";
-                    tableModel.addRow(new Object[]{row[0], row[1], row[2], row[3], sd, "View"});
-                }
-            }
+    private void showUsers() {
+        JOptionPane.showMessageDialog(this,
+            "User management feature coming soon.\n\n" +
+            "This will allow you to:\n" +
+            "• Add new users\n" +
+            "• Edit user roles\n" +
+            "• Deactivate accounts",
+            "User Management", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void showSettings() {
+        JOptionPane.showMessageDialog(this,
+            "Settings feature coming soon.\n\n" +
+            "This will allow you to configure:\n" +
+            "• System preferences\n" +
+            "• Notification settings\n" +
+            "• Database backup options",
+            "Settings", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void logout() {
+        int confirm = JOptionPane.showConfirmDialog(
+            this, "Are you sure you want to logout?",
+            "Logout", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+        if (confirm == JOptionPane.YES_OPTION) {
+            new login().setVisible(true);
+            dispose();
         }
     }
 
-    // ── Styled button factory ──────────────────────────────────────────────
-
-    private JButton createStyledButton(String text, Color bg, Color hover, Color fg) {
-        JButton b = new JButton(text) {
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
-                                    RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(getModel().isRollover() ? hover : bg);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
-                g2.setColor(fg);
-                g2.setFont(getFont());
-                FontMetrics fm = g2.getFontMetrics();
-                g2.drawString(getText(),
-                    (getWidth()  - fm.stringWidth(getText())) / 2,
-                    (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
-                g2.dispose();
-            }
-
-            @Override public Insets getInsets() { return new Insets(0, 0, 0, 0); }
-        };
-        b.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        b.setForeground(fg);
-        b.setPreferredSize(new Dimension(110, 38));
-        b.setMargin(new Insets(0, 0, 0, 0));
-        b.setBorderPainted(false);
-        b.setContentAreaFilled(false);
-        b.setFocusPainted(false);
-        b.setOpaque(false);
-        b.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        return b;
-    }
-
-    // ── Rounded border ─────────────────────────────────────────────────────
-
+    // ── Rounded Border ─────────────────────────────────────────────────────
     static class RoundedBorder extends AbstractBorder {
         private final Color color;
         private final int thickness, radius;
@@ -1183,6 +1890,746 @@ public class dashboard extends JFrame {
         @Override
         public Insets getBorderInsets(Component c) {
             return new Insets(radius / 3, radius / 3, radius / 3, radius / 3);
+        }
+    }
+
+    // ── Inner class: AddBlotterPanel ──────────────────────────────────────────
+    private class AddBlotterPanel extends JPanel {
+        // Color palette - blue and white only
+        private final Color HEADER_BG      = new Color(25, 60, 110);
+        private final Color BLOTTER_BAR_BG = new Color(25, 60, 110);
+        private final Color PAGE_BG        = new Color(240, 245, 255);
+        private final Color CARD_BG        = Color.WHITE;
+        private final Color SECTION_LABEL  = new Color(25, 60, 110);
+        private final Color FIELD_BORDER   = new Color(200, 210, 230);
+        private final Color FIELD_BG       = Color.WHITE;
+        private final Color RESPONDENT_BG  = new Color(230, 241, 251);
+        private final Color RESPONDENT_BDR = new Color(180, 200, 220);
+        private final Color BTN_SAVE_BG    = new Color(45, 118, 200);
+        private final Color BTN_SAVE_FG    = Color.WHITE;
+        private final Color LABEL_FG       = Color.BLACK;
+        private final Color TEXT_FG        = Color.BLACK;
+        private final Color HEADER_SUBTITLE= new Color(180, 190, 210);
+
+        // Fonts
+        private final Font FONT_TITLE    = new Font("Segoe UI", Font.BOLD, 18);
+        private final Font FONT_SUBTITLE = new Font("Segoe UI", Font.PLAIN, 11);
+        private final Font FONT_SECTION  = new Font("Segoe UI", Font.BOLD, 11);
+        private final Font FONT_LABEL    = new Font("Segoe UI", Font.PLAIN, 11);
+        private final Font FONT_INPUT    = new Font("Segoe UI", Font.PLAIN, 13);
+        private final Font FONT_BLOTTER  = new Font("Segoe UI", Font.BOLD, 13);
+        private final Font FONT_BTN      = new Font("Segoe UI", Font.BOLD, 12);
+
+        // Form fields
+        private JTextField tfCFirstName, tfCMiddleName, tfCLastName, tfCSuffix;
+        private JTextField tfMobileNumber, tfPurok;
+        private JTextField tfRFirstName, tfRMiddleName, tfRLastName, tfRSuffix;
+        private JButton btnDatePicker;
+        private JComboBox<String> cbComplaintType;
+        private JTextArea taDescription;
+        private java.util.Date selectedDate = new java.util.Date();
+
+        private final JDialog parentDialog;
+        private final ConnectionProvider connectionProvider;
+        private final Runnable onSaveCallback;
+        private final int nextBlotterNumber;
+
+        @FunctionalInterface
+        public interface ConnectionProvider {
+            Connection getConnection() throws ClassNotFoundException, SQLException;
+        }
+
+        public AddBlotterPanel(JDialog parent, ConnectionProvider connectionProvider,
+                               int nextBlotterNumber, Runnable onSaveCallback) {
+            this.parentDialog = parent;
+            this.connectionProvider = connectionProvider;
+            this.nextBlotterNumber = nextBlotterNumber;
+            this.onSaveCallback = onSaveCallback;
+            setLayout(new BorderLayout());
+            setBackground(PAGE_BG);
+            add(buildHeader(), BorderLayout.NORTH);
+            add(buildScrollBody(), BorderLayout.CENTER);
+        }
+
+        private JPanel buildHeader() {
+            JPanel header = new JPanel(new BorderLayout()) {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+                    
+
+                   
+                   
+
+                  
+
+                
+                }
+            };
+          
+            return header;
+        }
+
+        private JScrollPane buildScrollBody() {
+            JPanel body = new JPanel() {
+                @Override protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    g.setColor(PAGE_BG);
+                    g.fillRect(0, 0, getWidth(), getHeight());
+                }
+            };
+            body.setOpaque(false);
+            body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
+            body.setBorder(BorderFactory.createEmptyBorder(16, 24, 24, 24));
+
+            body.add(buildBlotterBar());
+            body.add(Box.createVerticalStrut(14));
+            body.add(buildPartiesCard());
+            body.add(Box.createVerticalStrut(16));
+            body.add(buildIncidentDetailsCard());
+            body.add(Box.createVerticalStrut(20));
+            body.add(buildButtonRow());
+            body.add(Box.createVerticalStrut(10));
+
+            JScrollPane scroll = new JScrollPane(body);
+            scroll.setBorder(null);
+            scroll.getViewport().setOpaque(false);
+            scroll.setOpaque(false);
+            scroll.getVerticalScrollBar().setUnitIncrement(12);
+            return scroll;
+        }
+
+        private JPanel buildBlotterBar() {
+            JPanel bar = new JPanel(new BorderLayout()) {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(BLOTTER_BAR_BG);
+                    g2.fill(new java.awt.geom.RoundRectangle2D.Double(0, 0, getWidth(), getHeight(), 10, 10));
+                    g2.dispose();
+                }
+            };
+            bar.setOpaque(false);
+            bar.setBorder(BorderFactory.createEmptyBorder(12, 18, 12, 18));
+            bar.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+
+            JLabel lKey = new JLabel("Blotter Number");
+            lKey.setFont(FONT_BLOTTER);
+            lKey.setForeground(new Color(0xA8C4E0));
+
+            String nextNumber = "#" + String.format("%04d", nextBlotterNumber);
+            JLabel lVal = new JLabel(nextNumber + " (auto-generated)");
+            lVal.setFont(FONT_BLOTTER);
+            lVal.setForeground(Color.WHITE);
+
+            bar.add(lKey, BorderLayout.WEST);
+            bar.add(lVal, BorderLayout.EAST);
+            return bar;
+        }
+
+        private JPanel buildPartiesCard() {
+            JPanel card = createCard();
+
+            JLabel complainantSection = sectionHeader("COMPLAINANT INFORMATION");
+
+            JPanel cRow1 = new JPanel(new GridLayout(1, 2, 14, 0));
+            cRow1.setOpaque(false);
+            tfCFirstName = styledField("First name", false);
+            tfCMiddleName = styledField("Middle name", false);
+            cRow1.add(labeledField("First Name", tfCFirstName));
+            cRow1.add(labeledField("Middle Name", tfCMiddleName));
+
+            JPanel cRow2 = new JPanel(new GridLayout(1, 2, 14, 0));
+            cRow2.setOpaque(false);
+            tfCLastName = styledField("Last name", false);
+            tfCSuffix = styledField("e.g. Jr., Sr., III (Optional)", false);
+            cRow2.add(labeledField("Last Name", tfCLastName));
+            cRow2.add(labeledField("Suffix (Optional)", tfCSuffix));
+
+            JPanel cRow3 = new JPanel(new GridLayout(1, 2, 14, 0));
+            cRow3.setOpaque(false);
+            tfMobileNumber = styledField("Mobile number", false);
+            tfPurok = styledField("Purok", false);
+            cRow3.add(labeledField("Mobile Number", tfMobileNumber));
+            cRow3.add(labeledField("Purok", tfPurok));
+
+            JLabel respondentSection = sectionHeader("RESPONDENT INFORMATION");
+
+            JPanel rRow1 = new JPanel(new GridLayout(1, 2, 14, 0));
+            rRow1.setOpaque(false);
+            tfRFirstName = styledField("First name", true);
+            tfRMiddleName = styledField("Middle name", true);
+            rRow1.add(labeledField("First Name", tfRFirstName));
+            rRow1.add(labeledField("Middle Name", tfRMiddleName));
+
+            JPanel rRow2 = new JPanel(new GridLayout(1, 2, 14, 0));
+            rRow2.setOpaque(false);
+            tfRLastName = styledField("Last name", true);
+            tfRSuffix = styledField("e.g. Jr., Sr., III (Optional)", true);
+            rRow2.add(labeledField("Last Name", tfRLastName));
+            rRow2.add(labeledField("Suffix (Optional)", tfRSuffix));
+
+            JPanel dateRow = new JPanel(new GridLayout(1, 2, 14, 0));
+            dateRow.setOpaque(false);
+
+            JPanel datePanel = new JPanel();
+            datePanel.setOpaque(false);
+            datePanel.setLayout(new BoxLayout(datePanel, BoxLayout.Y_AXIS));
+
+            JLabel dateLabel = new JLabel("Date of Incident");
+            dateLabel.setFont(FONT_LABEL);
+            dateLabel.setForeground(LABEL_FG);
+            dateLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            JPanel dateInputPanel = new JPanel(new BorderLayout(5, 0));
+            dateInputPanel.setOpaque(false);
+            dateInputPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+
+            btnDatePicker = new JButton(new java.text.SimpleDateFormat("MM/dd/yyyy").format(selectedDate));
+            btnDatePicker.setFont(FONT_INPUT);
+            btnDatePicker.setForeground(TEXT_FG);
+            btnDatePicker.setBackground(FIELD_BG);
+            btnDatePicker.setHorizontalAlignment(SwingConstants.LEFT);
+            btnDatePicker.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(FIELD_BORDER, 1, 8),
+                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+            btnDatePicker.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            btnDatePicker.addActionListener(e -> showDatePicker());
+
+            dateInputPanel.add(btnDatePicker, BorderLayout.CENTER);
+            datePanel.add(dateLabel);
+            datePanel.add(Box.createVerticalStrut(4));
+            datePanel.add(dateInputPanel);
+
+            dateRow.add(datePanel);
+            dateRow.add(new JPanel());
+
+            card.add(complainantSection);
+            card.add(Box.createVerticalStrut(10));
+            card.add(cRow1);
+            card.add(Box.createVerticalStrut(10));
+            card.add(cRow2);
+            card.add(Box.createVerticalStrut(10));
+            card.add(cRow3);
+            card.add(Box.createVerticalStrut(16));
+            card.add(respondentSection);
+            card.add(Box.createVerticalStrut(10));
+            card.add(rRow1);
+            card.add(Box.createVerticalStrut(10));
+            card.add(rRow2);
+            card.add(Box.createVerticalStrut(12));
+            card.add(dateRow);
+
+            return card;
+        }
+
+        private void showDatePicker() {
+            JDialog dateDialog = new JDialog(parentDialog, "Select Date", true);
+            dateDialog.setSize(350, 300);
+            dateDialog.setLocationRelativeTo(parentDialog);
+            dateDialog.setLayout(new BorderLayout());
+
+            JPanel calendarPanel = new JPanel(new BorderLayout());
+            calendarPanel.setBackground(Color.WHITE);
+            calendarPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+            JPanel monthYearPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
+            monthYearPanel.setBackground(Color.WHITE);
+
+            java.util.Calendar cal = java.util.Calendar.getInstance();
+            cal.setTime(selectedDate);
+
+            String[] months = {"January", "February", "March", "April", "May", "June",
+                              "July", "August", "September", "October", "November", "December"};
+            JComboBox<String> monthCombo = new JComboBox<>(months);
+            monthCombo.setSelectedIndex(cal.get(java.util.Calendar.MONTH));
+            monthCombo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+
+            JSpinner yearSpinner = new JSpinner(new SpinnerNumberModel(
+                cal.get(java.util.Calendar.YEAR), 1900, 2100, 1));
+            yearSpinner.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+
+            monthYearPanel.add(monthCombo);
+            monthYearPanel.add(yearSpinner);
+
+            JPanel daysPanel = new JPanel(new GridLayout(0, 7, 2, 2));
+            daysPanel.setBackground(Color.WHITE);
+
+            String[] dayNames = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
+            for (String day : dayNames) {
+                JLabel label = new JLabel(day, SwingConstants.CENTER);
+                label.setFont(new Font("Segoe UI", Font.BOLD, 10));
+                label.setForeground(TEXT_SEC);
+                daysPanel.add(label);
+            }
+
+            JButton[] dayButtons = new JButton[42];
+            for (int i = 0; i < 42; i++) {
+                dayButtons[i] = new JButton();
+                dayButtons[i].setFont(new Font("Segoe UI", Font.PLAIN, 11));
+                dayButtons[i].setBackground(Color.WHITE);
+                dayButtons[i].setFocusPainted(false);
+                dayButtons[i].setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
+                final int index = i;
+                dayButtons[i].addActionListener(e -> {
+                    JButton source = (JButton) e.getSource();
+                    int day = Integer.parseInt(source.getText());
+
+                    java.util.Calendar selectedCal = java.util.Calendar.getInstance();
+                    selectedCal.set(java.util.Calendar.YEAR, (Integer) yearSpinner.getValue());
+                    selectedCal.set(java.util.Calendar.MONTH, monthCombo.getSelectedIndex());
+                    selectedCal.set(java.util.Calendar.DAY_OF_MONTH, day);
+
+                    selectedDate = selectedCal.getTime();
+                    btnDatePicker.setText(new java.text.SimpleDateFormat("MM/dd/yyyy").format(selectedDate));
+                    dateDialog.dispose();
+                });
+                daysPanel.add(dayButtons[i]);
+            }
+
+            Runnable updateDays = () -> {
+                java.util.Calendar tempCal = java.util.Calendar.getInstance();
+                tempCal.set(java.util.Calendar.YEAR, (Integer) yearSpinner.getValue());
+                tempCal.set(java.util.Calendar.MONTH, monthCombo.getSelectedIndex());
+                tempCal.set(java.util.Calendar.DAY_OF_MONTH, 1);
+
+                int firstDayOfWeek = tempCal.get(java.util.Calendar.DAY_OF_WEEK) - 1;
+                int daysInMonth = tempCal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH);
+
+                for (int i = 0; i < 42; i++) {
+                    dayButtons[i].setText("");
+                    dayButtons[i].setEnabled(false);
+                }
+
+                for (int i = 1; i <= daysInMonth; i++) {
+                    int index = firstDayOfWeek + i - 1;
+                    dayButtons[index].setText(String.valueOf(i));
+                    dayButtons[index].setEnabled(true);
+
+                    java.util.Calendar checkCal = java.util.Calendar.getInstance();
+                    checkCal.setTime(selectedDate);
+                    if (checkCal.get(java.util.Calendar.YEAR) == (Integer) yearSpinner.getValue() &&
+                        checkCal.get(java.util.Calendar.MONTH) == monthCombo.getSelectedIndex() &&
+                        checkCal.get(java.util.Calendar.DAY_OF_MONTH) == i) {
+                        dayButtons[index].setBackground(BLUE_LIGHT);
+                        dayButtons[index].setForeground(BLUE);
+                    } else {
+                        dayButtons[index].setBackground(Color.WHITE);
+                        dayButtons[index].setForeground(TEXT_PRI);
+                    }
+                }
+            };
+
+            monthCombo.addActionListener(e -> updateDays.run());
+            yearSpinner.addChangeListener(e -> updateDays.run());
+            updateDays.run();
+
+            calendarPanel.add(monthYearPanel, BorderLayout.NORTH);
+            calendarPanel.add(daysPanel, BorderLayout.CENTER);
+
+            JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+            buttonPanel.setBackground(Color.WHITE);
+
+            JButton todayBtn = new JButton("Today");
+            todayBtn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            todayBtn.addActionListener(e -> {
+                selectedDate = new java.util.Date();
+                btnDatePicker.setText(new java.text.SimpleDateFormat("MM/dd/yyyy").format(selectedDate));
+                dateDialog.dispose();
+            });
+
+            JButton cancelBtn = new JButton("Cancel");
+            cancelBtn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            cancelBtn.addActionListener(e -> dateDialog.dispose());
+
+            buttonPanel.add(todayBtn);
+            buttonPanel.add(cancelBtn);
+
+            dateDialog.add(calendarPanel, BorderLayout.CENTER);
+            dateDialog.add(buttonPanel, BorderLayout.SOUTH);
+            dateDialog.setVisible(true);
+        }
+
+        private JPanel buildIncidentDetailsCard() {
+            JPanel card = createCard();
+
+            JLabel sectionLabel = sectionHeader("INCIDENT DETAILS");
+
+            String[] complaintTypes = {
+                "Noise Disturbance", "Verbal Dispute", "Property Damage", "Theft",
+                "Physical Altercation", "Threats/Harassment", "Other"
+            };
+            cbComplaintType = new JComboBox<>(complaintTypes);
+            cbComplaintType.setFont(FONT_INPUT);
+            cbComplaintType.setForeground(TEXT_FG);
+            cbComplaintType.setBackground(FIELD_BG);
+            cbComplaintType.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(FIELD_BORDER, 1, 8),
+                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+            cbComplaintType.setPreferredSize(new Dimension(200, 38));
+            cbComplaintType.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+
+            taDescription = new JTextArea(4, 20);
+            taDescription.setFont(FONT_INPUT);
+            taDescription.setForeground(TEXT_FG);
+            taDescription.setBackground(FIELD_BG);
+            taDescription.setLineWrap(true);
+            taDescription.setWrapStyleWord(true);
+            taDescription.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(FIELD_BORDER, 1, 8),
+                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
+
+            JScrollPane descriptionScroll = new JScrollPane(taDescription);
+            descriptionScroll.setBorder(null);
+            descriptionScroll.setOpaque(false);
+            descriptionScroll.getViewport().setOpaque(false);
+            descriptionScroll.setPreferredSize(new Dimension(0, 110));
+            descriptionScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
+
+            card.add(sectionLabel);
+            card.add(Box.createVerticalStrut(12));
+            card.add(labeledField("Type of Complaint", cbComplaintType));
+            card.add(Box.createVerticalStrut(16));
+            card.add(labeledField("Description / Incident Details", descriptionScroll));
+
+            return card;
+        }
+
+        private JPanel buildButtonRow() {
+            JPanel row = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
+            row.setOpaque(false);
+            row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
+
+            JButton saveBtn = createCardButton("Save Blotter Entry", "save", BTN_SAVE_BG,
+                new Color(30, 80, 140), BTN_SAVE_FG, e -> saveBlotterToDB());
+
+            row.add(saveBtn);
+            return row;
+        }
+
+        private String getFieldText(JTextField tf, String placeholder) {
+            String val = tf.getText().trim();
+            return val.equals(placeholder) ? "" : val;
+        }
+
+        private void saveBlotterToDB() {
+            final String cFirstName = getFieldText(tfCFirstName, "First name");
+            final String cMiddleName = getFieldText(tfCMiddleName, "Middle name");
+            final String cLastName = getFieldText(tfCLastName, "Last name");
+            final String cSuffix = getFieldText(tfCSuffix, "e.g. Jr., Sr., III (Optional)");
+            final String rFirstName = getFieldText(tfRFirstName, "First name");
+            final String rMiddleName = getFieldText(tfRMiddleName, "Middle name");
+            final String rLastName = getFieldText(tfRLastName, "Last name");
+            final String rSuffix = getFieldText(tfRSuffix, "e.g. Jr., Sr., III (Optional)");
+            final String mobileNumber = getFieldText(tfMobileNumber, "Mobile number");
+            final String purok = getFieldText(tfPurok, "Purok");
+            final String complaintType = (String) cbComplaintType.getSelectedItem();
+            final String description = taDescription.getText().trim();
+
+            if (cFirstName.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter complainant's first name.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                tfCFirstName.requestFocus();
+                return;
+            }
+            if (cMiddleName.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter complainant's middle name.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                tfCMiddleName.requestFocus();
+                return;
+            }
+            if (cLastName.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter complainant's last name.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                tfCLastName.requestFocus();
+                return;
+            }
+            if (rFirstName.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter respondent's first name.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                tfRFirstName.requestFocus();
+                return;
+            }
+            if (rMiddleName.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter respondent's middle name.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                tfRMiddleName.requestFocus();
+                return;
+            }
+            if (rLastName.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter respondent's last name.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                tfRLastName.requestFocus();
+                return;
+            }
+            if (mobileNumber.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter complainant's mobile number.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                tfMobileNumber.requestFocus();
+                return;
+            }
+            if (purok.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter complainant's purok.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                tfPurok.requestFocus();
+                return;
+            }
+            if (description.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter incident description.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                taDescription.requestFocus();
+                return;
+            }
+
+            setAllFieldsEnabled(false);
+
+            new SwingWorker<Boolean, Void>() {
+                @Override
+                protected Boolean doInBackground() throws Exception {
+                    try (Connection conn = connectionProvider.getConnection()) {
+                        conn.setAutoCommit(false);
+                        try {
+                            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd");
+                            String formattedDate = sdf.format(selectedDate);
+
+                            int complainantId;
+                            String insertComplainant = "INSERT INTO complainant " +
+                                "(first_name, middle_name, last_name, suffix, mobile_number, purok) " +
+                                "VALUES (?, ?, ?, ?, ?, ?)";
+                            try (PreparedStatement pstmt = conn.prepareStatement(
+                                    insertComplainant, Statement.RETURN_GENERATED_KEYS)) {
+                                pstmt.setString(1, cFirstName);
+                                pstmt.setString(2, cMiddleName);
+                                pstmt.setString(3, cLastName);
+                                pstmt.setString(4, cSuffix.isEmpty() ? null : cSuffix);
+                                pstmt.setString(5, mobileNumber);
+                                pstmt.setString(6, purok);
+                                pstmt.executeUpdate();
+                                try (ResultSet keys = pstmt.getGeneratedKeys()) {
+                                    keys.next();
+                                    complainantId = keys.getInt(1);
+                                }
+                            }
+
+                            int respondentId;
+                            String insertRespondent = "INSERT INTO respondent " +
+                                "(first_name, middle_name, last_name, suffix) " +
+                                "VALUES (?, ?, ?, ?)";
+                            try (PreparedStatement pstmt = conn.prepareStatement(
+                                    insertRespondent, Statement.RETURN_GENERATED_KEYS)) {
+                                pstmt.setString(1, rFirstName);
+                                pstmt.setString(2, rMiddleName);
+                                pstmt.setString(3, rLastName);
+                                pstmt.setString(4, rSuffix.isEmpty() ? null : rSuffix);
+                                pstmt.executeUpdate();
+                                try (ResultSet keys = pstmt.getGeneratedKeys()) {
+                                    keys.next();
+                                    respondentId = keys.getInt(1);
+                                }
+                            }
+
+                            String insertBlotter = "INSERT INTO blotter " +
+                                "(complainant_id, respondent_id, date, complt_type, description, status) " +
+                                "VALUES (?, ?, ?, ?, ?, ?)";
+                            try (PreparedStatement pstmt = conn.prepareStatement(insertBlotter)) {
+                                pstmt.setInt(1, complainantId);
+                                pstmt.setInt(2, respondentId);
+                                pstmt.setDate(3, java.sql.Date.valueOf(formattedDate));
+                                pstmt.setString(4, complaintType);
+                                pstmt.setString(5, description);
+                                pstmt.setString(6, "pending");
+                                pstmt.executeUpdate();
+                            }
+
+                            conn.commit();
+                        } catch (Exception e) {
+                            conn.rollback();
+                            throw e;
+                        }
+                    }
+                    return true;
+                }
+
+                @Override
+                protected void done() {
+                    try {
+                        if (get()) {
+                            JOptionPane.showMessageDialog(AddBlotterPanel.this,
+                                "Blotter entry saved successfully!",
+                                "Success", JOptionPane.INFORMATION_MESSAGE);
+                            if (onSaveCallback != null) onSaveCallback.run();
+                            if (parentDialog != null) parentDialog.dispose();
+                        }
+                    } catch (Exception e) {
+                        String message = "Error saving blotter: ";
+                        Throwable cause = e.getCause();
+                        if (cause != null && cause.getMessage() != null) {
+                            message += cause.getMessage();
+                        } else if (e.getMessage() != null) {
+                            message += e.getMessage();
+                        } else {
+                            message += "Unknown error occurred";
+                        }
+                        JOptionPane.showMessageDialog(AddBlotterPanel.this, message,
+                            "Error", JOptionPane.ERROR_MESSAGE);
+                        setAllFieldsEnabled(true);
+                    }
+                }
+            }.execute();
+        }
+
+        private void setAllFieldsEnabled(boolean enabled) {
+            tfCFirstName.setEnabled(enabled);
+            tfCMiddleName.setEnabled(enabled);
+            tfCLastName.setEnabled(enabled);
+            tfCSuffix.setEnabled(enabled);
+            tfRFirstName.setEnabled(enabled);
+            tfRMiddleName.setEnabled(enabled);
+            tfRLastName.setEnabled(enabled);
+            tfRSuffix.setEnabled(enabled);
+            tfMobileNumber.setEnabled(enabled);
+            tfPurok.setEnabled(enabled);
+            btnDatePicker.setEnabled(enabled);
+            cbComplaintType.setEnabled(enabled);
+            taDescription.setEnabled(enabled);
+        }
+
+        private JPanel createCard() {
+            JPanel card = new JPanel() {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(new Color(0, 0, 0, 25));
+                    g2.fill(new java.awt.geom.RoundRectangle2D.Double(4, 6, getWidth()-6, getHeight()-6, 16, 16));
+                    GradientPaint gradient = new GradientPaint(0, 0, CARD_BG, 0, getHeight(), new Color(250, 252, 255));
+                    g2.setPaint(gradient);
+                    g2.fill(new java.awt.geom.RoundRectangle2D.Double(0, 0, getWidth()-4, getHeight()-4, 14, 14));
+                    g2.setColor(new Color(200, 210, 225));
+                    g2.setStroke(new BasicStroke(1f));
+                    g2.draw(new java.awt.geom.RoundRectangle2D.Double(1, 1, getWidth()-5, getHeight()-5, 14, 14));
+                    g2.dispose();
+                }
+            };
+            card.setOpaque(false);
+            card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+            card.setBorder(BorderFactory.createEmptyBorder(20, 24, 24, 24));
+            card.setAlignmentX(Component.LEFT_ALIGNMENT);
+            card.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
+            return card;
+        }
+
+        private JLabel sectionHeader(String text) {
+            JLabel lbl = new JLabel(text);
+            lbl.setFont(FONT_SECTION);
+            lbl.setForeground(SECTION_LABEL);
+            lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+            return lbl;
+        }
+
+        private JPanel labeledField(String labelText, JComponent field) {
+            JPanel pnl = new JPanel();
+            pnl.setOpaque(false);
+            pnl.setLayout(new BoxLayout(pnl, BoxLayout.Y_AXIS));
+
+            JLabel lbl = new JLabel(labelText);
+            lbl.setFont(FONT_LABEL);
+            lbl.setForeground(LABEL_FG);
+            lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            field.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            pnl.add(lbl);
+            pnl.add(Box.createVerticalStrut(4));
+            pnl.add(field);
+            return pnl;
+        }
+
+        private JTextField styledField(String placeholder, boolean isRespondent) {
+            JTextField tf = new JTextField();
+            tf.setFont(FONT_INPUT);
+            tf.setForeground(TEXT_FG);
+            tf.setBackground(isRespondent ? RESPONDENT_BG : FIELD_BG);
+            tf.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(isRespondent ? RESPONDENT_BDR : FIELD_BORDER, 1, 8),
+                BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+            tf.setPreferredSize(new Dimension(200, 38));
+            tf.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+
+            tf.addFocusListener(new FocusAdapter() {
+                @Override public void focusGained(FocusEvent e) {
+                    if (tf.getText().equals(placeholder)) {
+                        tf.setText("");
+                        tf.setForeground(TEXT_FG);
+                    }
+                }
+                @Override public void focusLost(FocusEvent e) {
+                    if (tf.getText().isEmpty()) {
+                        tf.setText(placeholder);
+                        tf.setForeground(TEXT_SEC);
+                    }
+                }
+            });
+
+            tf.setText(placeholder);
+            tf.setForeground(TEXT_SEC);
+            return tf;
+        }
+
+        private JButton createCardButton(String text, String iconName, Color bg, Color hover, Color fg, ActionListener listener) {
+            JButton btn = new JButton(text) {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    int w = getWidth();
+                    int h = getHeight();
+                    g2.setColor(new Color(0, 0, 0, 15));
+                    g2.fillRoundRect(2, 3, w - 2, h - 2, 12, 12);
+                    if (getModel().isPressed()) {
+                        g2.setColor(hover.darker());
+                    } else if (getModel().isRollover()) {
+                        g2.setColor(hover);
+                    } else {
+                        g2.setColor(bg);
+                    }
+                    g2.fillRoundRect(0, 0, w - 2, h - 2, 12, 12);
+                    g2.setColor(fg);
+                    g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                    int iconX = 16;
+                    int iconY = h / 2;
+                    drawCardIcon(g2, iconName, iconX, iconY);
+                    g2.setColor(fg);
+                    g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
+                    FontMetrics fm = g2.getFontMetrics();
+                    int textX = 44;
+                    int textY = (h + fm.getAscent() - fm.getDescent()) / 2;
+                    g2.drawString(getText(), textX, textY);
+                    g2.dispose();
+                }
+
+                private void drawCardIcon(Graphics2D g2, String icon, int x, int y) {
+                    switch (icon) {
+                        case "save":
+                            g2.fillRect(x - 6, y - 8, 14, 16);
+                            g2.drawLine(x - 2, y - 4, x + 2, y);
+                            g2.drawLine(x - 2, y, x + 2, y + 4);
+                            break;
+                        case "close":
+                            g2.drawLine(x - 6, y - 6, x + 6, y + 6);
+                            g2.drawLine(x + 6, y - 6, x - 6, y + 6);
+                            break;
+                    }
+                }
+            };
+            btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            btn.setForeground(fg);
+            btn.setContentAreaFilled(false);
+            btn.setBorderPainted(false);
+            btn.setFocusPainted(false);
+            btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            btn.setPreferredSize(new Dimension(text.length() > 12 ? 180 : 120, 44));
+            btn.addActionListener(listener);
+            return btn;
         }
     }
 }

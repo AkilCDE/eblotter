@@ -1,7 +1,6 @@
 package main.eblotterr;
 
 import java.awt.*;
-import java.awt.geom.RoundRectangle2D;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
