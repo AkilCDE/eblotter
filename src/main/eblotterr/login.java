@@ -137,26 +137,11 @@ public class login extends JFrame {
         p.setBackground(WHITE);
         p.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        JPanel badge = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(BLUE_LIGHT);
-                g2.fillOval(0, 0, getWidth(), getHeight());
-                g2.setColor(BLUE);
-                g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                g2.drawRoundRect(10, 17, 28, 19, 5, 5);
-                g2.drawArc(14, 8, 20, 18, 0, 180);
-                g2.fillOval(21, 22, 6, 6);
-                g2.drawLine(24, 28, 24, 32);
-                g2.dispose();
-            }
-        };
-        badge.setOpaque(false);
-        badge.setPreferredSize(new Dimension(52, 52));
-        badge.setMaximumSize(new Dimension(52, 52));
-        badge.setAlignmentX(Component.CENTER_ALIGNMENT);
+        // Logo
+        ImageIcon logoIcon = new ImageIcon("src/main/logo/logo.jpg");
+        Image scaledLogo = logoIcon.getImage().getScaledInstance(80, 80, Image.SCALE_SMOOTH);
+        JLabel logoLabel = new JLabel(new ImageIcon(scaledLogo));
+        logoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         republicLabel = label("REPUBLIC OF THE PHILIPPINES", 10, Font.PLAIN, TEXT_SEC);
         republicLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -167,7 +152,7 @@ public class login extends JFrame {
         subLabel = label("Digital Blotter Management System", 13, Font.PLAIN, TEXT_SEC);
         subLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        p.add(badge);
+        p.add(logoLabel);
         p.add(Box.createVerticalStrut(12));
         p.add(republicLabel);
         p.add(Box.createVerticalStrut(4));
@@ -359,7 +344,7 @@ public class login extends JFrame {
         p.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JLabel l1 = label("Authorized barangay personnel only", 11, Font.PLAIN, TEXT_SEC);
-        JLabel l2 = label("Barangay Mabini — Central Visayas", 12, Font.BOLD, TEXT_PRI);
+        JLabel l2 = label("Central Visayas", 12, Font.BOLD, TEXT_PRI);
         l1.setAlignmentX(Component.CENTER_ALIGNMENT);
         l2.setAlignmentX(Component.CENTER_ALIGNMENT);
 

@@ -134,7 +134,48 @@ public class ViewBlotterDialog {
         detailDialog.setSize(750, 750);
         detailDialog.setMinimumSize(new Dimension(480, 500));
         detailDialog.setLocationRelativeTo(parentFrame);
+        detailDialog.setUndecorated(true);
         detailDialog.getContentPane().setBackground(new Color(0xEAF1FB));
+
+        // Custom header with close button and dragging
+        JPanel customHeader = new JPanel(new BorderLayout());
+        customHeader.setBackground(new Color(0x1B3A5C));
+        customHeader.setPreferredSize(new Dimension(0, 50));
+        customHeader.setBorder(new EmptyBorder(0, 16, 0, 16));
+
+        JLabel titleLabel = new JLabel("Blotter Details - #" + blotterNum);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setForeground(Color.WHITE);
+        titleLabel.setBorder(new EmptyBorder(0, 0, 0, 0));
+
+        JButton closeHeaderBtn = new JButton("✕");
+        closeHeaderBtn.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        closeHeaderBtn.setForeground(Color.WHITE);
+        closeHeaderBtn.setBackground(new Color(0, 0, 0, 0));
+        closeHeaderBtn.setBorderPainted(false);
+        closeHeaderBtn.setContentAreaFilled(false);
+        closeHeaderBtn.setFocusPainted(false);
+        closeHeaderBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        closeHeaderBtn.setPreferredSize(new Dimension(40, 40));
+        closeHeaderBtn.addActionListener(e -> detailDialog.dispose());
+
+        customHeader.add(titleLabel, BorderLayout.WEST);
+        customHeader.add(closeHeaderBtn, BorderLayout.EAST);
+
+        // Window dragging
+        final int[] dragOffset = new int[2];
+        customHeader.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mousePressed(java.awt.event.MouseEvent e) {
+                dragOffset[0] = e.getX();
+                dragOffset[1] = e.getY();
+            }
+        });
+        customHeader.addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+            public void mouseDragged(java.awt.event.MouseEvent e) {
+                Point p = detailDialog.getLocation();
+                detailDialog.setLocation(p.x + e.getX() - dragOffset[0], p.y + e.getY() - dragOffset[1]);
+            }
+        });
 
         // Main panel with background
         JPanel mainPanel = new JPanel() {
@@ -146,10 +187,12 @@ public class ViewBlotterDialog {
         };
         mainPanel.setOpaque(false);
         mainPanel.setLayout(new BorderLayout());
-        mainPanel.setBorder(new EmptyBorder(0, 0, 0, 0));
+        mainPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(Color.BLACK, 1),
+            new EmptyBorder(0, 0, 0, 0)));
 
-        // Header
-        mainPanel.add(buildDetailHeader(blotterNum.toString()), BorderLayout.NORTH);
+        // Custom header
+        mainPanel.add(customHeader, BorderLayout.NORTH);
 
         // Content body
         JPanel body = new JPanel();

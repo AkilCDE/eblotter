@@ -26,12 +26,12 @@ public class dashboard extends JFrame {
     private static final Color TEXT_SEC     = new Color(80, 90, 110);
     private static final Color TEXT_LIGHT   = new Color(180, 190, 210);
     private static final Color STAT_BLUE    = new Color(52, 134, 235);
-    private static final Color STAT_ORANGE  = new Color(45, 118, 200);
-    private static final Color STAT_GREEN   = new Color(35, 95, 160);
-    private static final Color PENDING_BG   = new Color(230, 241, 251);
-    private static final Color PENDING_FG   = new Color(45, 118, 200);
-    private static final Color RESOLVED_BG  = new Color(240, 245, 255);
-    private static final Color RESOLVED_FG  = new Color(35, 95, 160);
+    private static final Color STAT_ORANGE  = new Color(255, 140, 60);
+    private static final Color STAT_GREEN   = new Color(46, 176, 120);
+    private static final Color PENDING_BG   = new Color(255, 247, 235);
+    private static final Color PENDING_FG   = new Color(255, 140, 60);
+    private static final Color RESOLVED_BG  = new Color(228, 248, 240);
+    private static final Color RESOLVED_FG  = new Color(46, 176, 120);
     private static final Color SIDEBAR_BG   = new Color(20, 50, 90);
     private static final Color SIDEBAR_HOVER = new Color(35, 75, 120);
     private static final Color PAGE_BG      = new Color(240, 245, 255);
@@ -139,7 +139,7 @@ public class dashboard extends JFrame {
                          "FROM blotter b " +
                          "JOIN complainant c ON b.complainant_id = c.complainant_id " +
                          "JOIN respondent r ON b.respondent_id = r.respondent_id " +
-                         "ORDER BY b.date DESC";
+                         "ORDER BY b.blotter_id ASC";
             try (Statement stmt = conn.createStatement();
                  ResultSet rs = stmt.executeQuery(sql)) {
                 while (rs.next()) {
@@ -172,6 +172,21 @@ public class dashboard extends JFrame {
         } catch (ClassNotFoundException | SQLException e) {
             System.err.println("Error loading blotter data: " + e.getMessage());
         }
+    }
+
+    private int getNextBlotterId() {
+        try (Connection conn = getConnection()) {
+            String sql = "SELECT COALESCE(MAX(blotter_id), 0) + 1 as next_id FROM blotter";
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql)) {
+                if (rs.next()) {
+                    return rs.getInt("next_id");
+                }
+            }
+        } catch (ClassNotFoundException | SQLException e) {
+            e.printStackTrace();
+        }
+        return 1;
     }
 
     private String buildFullName(String first, String middle, String last, String suffix) {
@@ -357,21 +372,10 @@ public class dashboard extends JFrame {
         userInfoPanel.add(dateLabel);
 
         JPanel avatar = createAvatar();
-        
-        JButton logoutBtn = new JButton("Logout");
-        logoutBtn.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        logoutBtn.setForeground(WHITE);
-        logoutBtn.setBackground(new Color(220, 53, 69));
-        logoutBtn.setBorderPainted(false);
-        logoutBtn.setFocusPainted(false);
-        logoutBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        logoutBtn.setPreferredSize(new Dimension(80, 36));
-        logoutBtn.addActionListener(e -> logout());
 
         right.add(userInfoPanel);
         right.add(avatar);
         right.add(Box.createHorizontalStrut(12));
-        right.add(logoutBtn);
         return right;
     }
 
@@ -533,25 +537,13 @@ public class dashboard extends JFrame {
         brand.setBorder(new EmptyBorder(8, 12, 8, 12));
         brand.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
 
-        JPanel iconBox = new JPanel() {
-            @Override protected void paintComponent(Graphics g) {
-                Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2.setColor(new Color(52, 134, 235));
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
-                g2.setColor(WHITE);
-                g2.setFont(new Font("Segoe UI", Font.BOLD, 18));
-                FontMetrics fm = g2.getFontMetrics();
-                String b = "B";
-                g2.drawString(b, (getWidth() - fm.stringWidth(b)) / 2,
-                    (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
-                g2.dispose();
-            }
-        };
-        iconBox.setPreferredSize(new Dimension(44, 44));
-        iconBox.setMaximumSize(new Dimension(44, 44));
-        iconBox.setMinimumSize(new Dimension(44, 44));
-        iconBox.setOpaque(false);
+        // Logo
+        ImageIcon logoIcon = new ImageIcon("src/main/logo/logo.jpg");
+        Image scaledLogo = logoIcon.getImage().getScaledInstance(44, 44, Image.SCALE_SMOOTH);
+        JLabel logoLabel = new JLabel(new ImageIcon(scaledLogo));
+        logoLabel.setPreferredSize(new Dimension(44, 44));
+        logoLabel.setMaximumSize(new Dimension(44, 44));
+        logoLabel.setMinimumSize(new Dimension(44, 44));
 
         JPanel textBox = new JPanel();
         textBox.setOpaque(false);
@@ -569,7 +561,7 @@ public class dashboard extends JFrame {
         textBox.add(brandTitle);
         textBox.add(brandSub);
 
-        brand.add(iconBox);
+        brand.add(logoLabel);
         brand.add(textBox);
         brand.add(Box.createHorizontalGlue());
 
@@ -835,10 +827,8 @@ public class dashboard extends JFrame {
                                     RenderingHints.VALUE_ANTIALIAS_ON);
                 g2.setColor(new Color(0, 0, 0, 15));
                 g2.fillRoundRect(4, 5, getWidth()-6, getHeight()-6, 16, 16);
-                g2.setColor(WHITE);
-                g2.fillRoundRect(0, 0, getWidth()-4, getHeight()-4, 14, 14);
                 g2.setColor(accent);
-                g2.fillRoundRect(0, 0, 6, getHeight()-4, 14, 14);
+                g2.fillRoundRect(0, 0, getWidth()-4, getHeight()-4, 14, 14);
                 g2.dispose();
             }
         };
@@ -854,13 +844,13 @@ public class dashboard extends JFrame {
         topRow.add(emojiLabel);
 
         valueLabel.setFont(new Font("Segoe UI", Font.BOLD, 42));
-        valueLabel.setForeground(TEXT_PRI);
+        valueLabel.setForeground(WHITE);
         valueLabel.setHorizontalAlignment(SwingConstants.LEFT);
         valueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel lbl = new JLabel(label);
         lbl.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        lbl.setForeground(TEXT_SEC);
+        lbl.setForeground(WHITE);
         lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         card.add(topRow);
@@ -1097,18 +1087,21 @@ public class dashboard extends JFrame {
 
     private void refreshAddBlotterPanel() {
         addBlotterPanel.removeAll();
-        
+
         JPanel content = new JPanel(new BorderLayout());
         content.setBackground(PAGE_BG);
-        
+
         // Header
         content.add(buildAddBlotterHeader(), BorderLayout.NORTH);
-        
+
+        // Get the actual next blotter ID from database
+        int nextBlotterId = getNextBlotterId();
+
         // Main content - Create AddBlotterPanel without dialog
         currentAddBlotterPanel = new AddBlotterPanel(
             null,
             this::getConnection,
-            blotterData.size() + 1,
+            nextBlotterId,
             () -> {
                 loadBlotterData();
                 refreshTableAndStats();
@@ -1414,6 +1407,40 @@ public class dashboard extends JFrame {
         historyTable.setShowGrid(false);
         historyTable.setIntercellSpacing(new Dimension(0, 0));
         historyTable.setSelectionBackground(BLUE_LIGHT);
+        historyTable.setSelectionForeground(TEXT_PRI);
+
+        historyTable.getColumnModel().getColumn(5).setCellRenderer(
+            (t, val, sel, foc, row, col) -> {
+                String status = val == null ? "" : val.toString();
+                boolean isPending = "Pending".equals(status);
+
+                JLabel l = new JLabel(status);
+                l.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                l.setForeground(isPending ? PENDING_FG : RESOLVED_FG);
+                l.setHorizontalAlignment(SwingConstants.CENTER);
+                l.setOpaque(true);
+                l.setBackground(row % 2 == 0 ? WHITE : new Color(248, 250, 252));
+
+                JPanel wrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 8));
+                wrap.setBackground(row % 2 == 0 ? WHITE : new Color(248, 250, 252));
+
+                JPanel pill = new JPanel() {
+                    @Override protected void paintComponent(Graphics g) {
+                        Graphics2D g2 = (Graphics2D) g.create();
+                        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING,
+                                            RenderingHints.VALUE_ANTIALIAS_ON);
+                        g2.setColor(isPending ? PENDING_BG : RESOLVED_BG);
+                        g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
+                        g2.dispose();
+                    }
+                };
+                pill.setLayout(new BorderLayout());
+                pill.setOpaque(false);
+                pill.add(l, BorderLayout.CENTER);
+
+                wrap.add(pill);
+                return wrap;
+            });
 
         JTableHeader header = historyTable.getTableHeader();
         header.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -1975,6 +2002,7 @@ public class dashboard extends JFrame {
         usersTable.setShowGrid(false);
         usersTable.setIntercellSpacing(new Dimension(0, 0));
         usersTable.setSelectionBackground(BLUE_LIGHT);
+        usersTable.setSelectionForeground(TEXT_PRI);
 
         JTableHeader header = usersTable.getTableHeader();
         header.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -2635,12 +2663,14 @@ public class dashboard extends JFrame {
 
         ButtonRenderer() {
             setOpaque(true);
-            setLayout(new FlowLayout(FlowLayout.LEFT, 6, 6));
-            
+            setLayout(new BoxLayout(this, BoxLayout.X_AXIS));
+            setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
+
             viewBtn = createActionButton("View", BLUE, new Color(230, 242, 255));
             printBtn = createActionButton("Print", STAT_GREEN, new Color(230, 245, 239));
-            
+
             add(viewBtn);
+            add(Box.createHorizontalStrut(6));
             add(printBtn);
         }
 
@@ -2663,24 +2693,27 @@ public class dashboard extends JFrame {
 
         ButtonEditor(JCheckBox checkBox) {
             super(checkBox);
-            
-            panel = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 6));
+
+            panel = new JPanel();
+            panel.setLayout(new BoxLayout(panel, BoxLayout.X_AXIS));
+            panel.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
             panel.setOpaque(true);
-            
+
             viewBtn = createActionButton("View", BLUE, new Color(230, 242, 255));
             printBtn = createActionButton("Print", STAT_GREEN, new Color(230, 245, 239));
-            
+
             viewBtn.addActionListener(e -> {
                 stopCellEditing();
                 SwingUtilities.invokeLater(() -> viewBlotterDialog.show(currentRow));
             });
-            
+
             printBtn.addActionListener(e -> {
                 stopCellEditing();
                 SwingUtilities.invokeLater(() -> printBlotterFrame.show(currentRow));
             });
-            
+
             panel.add(viewBtn);
+            panel.add(Box.createHorizontalStrut(6));
             panel.add(printBtn);
         }
 
@@ -2852,41 +2885,118 @@ public class dashboard extends JFrame {
         }
 
         JDialog dialog = new JDialog(this, "Update Status", true);
-        dialog.setSize(450, 320);
+        dialog.setSize(480, 380);
         dialog.setLocationRelativeTo(this);
         dialog.setResizable(false);
+
+        JPanel mainPanel = new JPanel(new BorderLayout());
+        mainPanel.setBackground(PAGE_BG);
+
+        JPanel header = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 20));
+                g2.fillRoundRect(4, 4, getWidth() - 6, getHeight() - 6, 16, 16);
+                GradientPaint gp = new GradientPaint(0, 0, BLUE_DARK, getWidth(), 0, new Color(45, 80, 130));
+                g2.setPaint(gp);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
+                g2.setColor(new Color(255, 255, 255, 30));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth() - 6, getHeight() - 6, 14, 14);
+                g2.dispose();
+            }
+        };
+        header.setOpaque(false);
+        header.setBorder(new EmptyBorder(20, 28, 20, 28));
+        header.setPreferredSize(new Dimension(0, 80));
+
+        JLabel titleLabel = new JLabel("Update Status");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(WHITE);
+
+        JLabel subtitleLabel = new JLabel("Blotter ID #" + blotterNum);
+        subtitleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        subtitleLabel.setForeground(new Color(180, 190, 210));
+
+        JPanel titlePanel = new JPanel();
+        titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.Y_AXIS));
+        titlePanel.setOpaque(false);
+        titlePanel.add(titleLabel);
+        titlePanel.add(subtitleLabel);
+
+        header.add(titlePanel, BorderLayout.WEST);
+        mainPanel.add(header, BorderLayout.NORTH);
 
         JPanel content = new JPanel();
         content.setBackground(WHITE);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setBorder(new EmptyBorder(20, 20, 20, 20));
+        content.setBorder(new EmptyBorder(24, 28, 24, 28));
 
-        JLabel titleLabel = new JLabel("Update Status for ID #" + blotterNum);
-        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        titleLabel.setForeground(TEXT_PRI);
-        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JPanel currentStatusPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        currentStatusPanel.setOpaque(false);
+        JLabel currentLabel = new JLabel("Current Status:");
+        currentLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        currentLabel.setForeground(TEXT_PRI);
 
-        JLabel currentLabel = new JLabel("Current Status: " + currentStatus);
-        currentLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        currentLabel.setForeground(TEXT_SEC);
-        currentLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel currentStatusLabel = new JLabel(currentStatus);
+        currentStatusLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        currentStatusLabel.setForeground("Pending".equals(currentStatus) ? STAT_ORANGE : STAT_GREEN);
+        currentStatusLabel.setBorder(new EmptyBorder(0, 8, 0, 8));
+        currentStatusLabel.setOpaque(true);
+        currentStatusLabel.setBackground("Pending".equals(currentStatus) ? new Color(255, 247, 235) : new Color(228, 248, 240));
+        currentStatusLabel.setBorder(new CompoundBorder(
+            new LineBorder("Pending".equals(currentStatus) ? STAT_ORANGE : STAT_GREEN, 1),
+            new EmptyBorder(4, 12, 4, 12)
+        ));
+
+        currentStatusPanel.add(currentLabel);
+        currentStatusPanel.add(currentStatusLabel);
+        currentStatusPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JLabel newStatusLabel = new JLabel("New Status:");
-        newStatusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        newStatusLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
         newStatusLabel.setForeground(TEXT_PRI);
         newStatusLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JComboBox<String> statusCombo = new JComboBox<>(new String[]{"Pending", "Resolved"});
         statusCombo.setSelectedItem(currentStatus);
-        statusCombo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        statusCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
-        statusCombo.setBackground(BLUE_LIGHT);
+        statusCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        statusCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        statusCombo.setBackground(WHITE);
+        statusCombo.setBorder(new CompoundBorder(
+            new LineBorder(BORDER_CLR, 1),
+            new EmptyBorder(8, 12, 8, 12)
+        ));
+        statusCombo.setAlignmentX(Component.LEFT_ALIGNMENT);
+        statusCombo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value,
+                    int index, boolean isSelected, boolean cellHasFocus) {
+                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                label.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+                if (isSelected) {
+                    label.setBackground(BLUE_LIGHT);
+                    label.setForeground(TEXT_PRI);
+                } else {
+                    label.setBackground(WHITE);
+                    label.setForeground(TEXT_PRI);
+                }
+                label.setBorder(new EmptyBorder(8, 12, 8, 12));
+                return label;
+            }
+        });
 
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 0));
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 12, 0));
         buttonPanel.setBackground(WHITE);
         buttonPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        buttonPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
 
-        JButton saveBtn = createStyledButton("Save", BLUE, BLUE_HOVER, WHITE);
+        JButton cancelBtn = createStyledButton("Cancel",
+            new Color(108, 117, 125), new Color(90, 98, 104), WHITE);
+        cancelBtn.addActionListener(e -> dialog.dispose());
+
+        JButton saveBtn = createStyledButton("Update Status", STAT_ORANGE, new Color(255, 120, 50), WHITE);
         saveBtn.addActionListener(e -> {
             String newStatus = (String) statusCombo.getSelectedItem();
             if (newStatus != null && !newStatus.equals(currentStatus)) {
@@ -2898,24 +3008,20 @@ public class dashboard extends JFrame {
             }
         });
 
-        JButton cancelBtn = createStyledButton("Cancel",
-            new Color(108, 117, 125), new Color(90, 98, 104), WHITE);
-        cancelBtn.addActionListener(e -> dialog.dispose());
-
-        buttonPanel.add(saveBtn);
         buttonPanel.add(cancelBtn);
+        buttonPanel.add(saveBtn);
 
-        content.add(titleLabel);
-        content.add(Box.createVerticalStrut(8));
-        content.add(currentLabel);
-        content.add(Box.createVerticalStrut(16));
-        content.add(newStatusLabel);
-        content.add(Box.createVerticalStrut(6));
-        content.add(statusCombo);
+        content.add(currentStatusPanel);
         content.add(Box.createVerticalStrut(20));
+        content.add(newStatusLabel);
+        content.add(Box.createVerticalStrut(8));
+        content.add(statusCombo);
+        content.add(Box.createVerticalStrut(24));
         content.add(buttonPanel);
 
-        dialog.setContentPane(content);
+        mainPanel.add(content, BorderLayout.CENTER);
+
+        dialog.setContentPane(mainPanel);
         dialog.setVisible(true);
     }
 
@@ -3030,6 +3136,7 @@ public class dashboard extends JFrame {
         private JTextField tfRFirstName, tfRMiddleName, tfRLastName, tfRSuffix;
         private JButton btnDatePicker;
         private JComboBox<String> cbComplaintType;
+        private JTextField tfCustomComplaintType;
         private JTextArea taDescription;
         private java.util.Date selectedDate = new java.util.Date();
 
@@ -3269,6 +3376,43 @@ public class dashboard extends JFrame {
             cbComplaintType.setPreferredSize(new Dimension(200, 38));
             cbComplaintType.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
 
+            tfCustomComplaintType = new JTextField("Please specify...");
+            tfCustomComplaintType.setFont(FONT_INPUT);
+            tfCustomComplaintType.setForeground(TEXT_SEC);
+            tfCustomComplaintType.setBackground(FIELD_BG);
+            tfCustomComplaintType.setBorder(BorderFactory.createCompoundBorder(
+                new RoundedBorder(FIELD_BORDER, 1, 8),
+                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
+            tfCustomComplaintType.setPreferredSize(new Dimension(0, 38));
+            tfCustomComplaintType.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+            tfCustomComplaintType.setVisible(false);
+
+            tfCustomComplaintType.addFocusListener(new FocusAdapter() {
+                @Override public void focusGained(FocusEvent e) {
+                    if (tfCustomComplaintType.getText().equals("Please specify...")) {
+                        tfCustomComplaintType.setText("");
+                        tfCustomComplaintType.setForeground(TEXT_FG);
+                    }
+                }
+                @Override public void focusLost(FocusEvent e) {
+                    if (tfCustomComplaintType.getText().isEmpty()) {
+                        tfCustomComplaintType.setText("Please specify...");
+                        tfCustomComplaintType.setForeground(TEXT_SEC);
+                    }
+                }
+            });
+
+            cbComplaintType.addActionListener(e -> {
+                String selected = (String) cbComplaintType.getSelectedItem();
+                if ("Other".equals(selected)) {
+                    tfCustomComplaintType.setVisible(true);
+                    tfCustomComplaintType.setText("");
+                    tfCustomComplaintType.setForeground(TEXT_FG);
+                } else {
+                    tfCustomComplaintType.setVisible(false);
+                }
+            });
+
             taDescription = new JTextArea(4, 20);
             taDescription.setFont(FONT_INPUT);
             taDescription.setForeground(TEXT_FG);
@@ -3289,6 +3433,8 @@ public class dashboard extends JFrame {
             card.add(sectionLabel);
             card.add(Box.createVerticalStrut(12));
             card.add(labeledField("Type of Complaint", cbComplaintType));
+            card.add(Box.createVerticalStrut(8));
+            card.add(labeledField("Specify Other Complaint Type", tfCustomComplaintType));
             card.add(Box.createVerticalStrut(16));
             card.add(labeledField("Description / Incident Details", descriptionScroll));
 
@@ -3324,7 +3470,19 @@ public class dashboard extends JFrame {
             final String rSuffix = getFieldText(tfRSuffix, "e.g. Jr., Sr., III (Optional)");
             final String mobileNumber = getFieldText(tfMobileNumber, "Mobile number");
             final String purok = getFieldText(tfPurok, "Purok");
-            final String complaintType = (String) cbComplaintType.getSelectedItem();
+            final String selectedComplaintType = (String) cbComplaintType.getSelectedItem();
+            final String complaintType;
+            if ("Other".equals(selectedComplaintType)) {
+                String customType = tfCustomComplaintType.getText().trim();
+                if (customType.isEmpty() || customType.equals("Please specify...")) {
+                    JOptionPane.showMessageDialog(this, "Please specify the other complaint type.",
+                        "Validation Error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                complaintType = customType;
+            } else {
+                complaintType = selectedComplaintType;
+            }
             final String description = taDescription.getText().trim();
 
             if (cFirstName.isEmpty() || cMiddleName.isEmpty() || cLastName.isEmpty()) {

@@ -36,6 +36,12 @@ public class LoadingScreen extends JFrame {
         root.setLayout(new BoxLayout(root, BoxLayout.Y_AXIS));
         root.setBorder(BorderFactory.createEmptyBorder(48, 50, 48, 50));
 
+        // Logo
+        ImageIcon logoIcon = new ImageIcon("src/main/logo/logo.jpg");
+        Image scaledLogo = logoIcon.getImage().getScaledInstance(120, 120, Image.SCALE_SMOOTH);
+        JLabel logoLabel = new JLabel(new ImageIcon(scaledLogo));
+        logoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         JLabel line1 = new JLabel("REPUBLIC OF THE PHILIPPINES");
         line1.setFont(new Font("Segoe UI", Font.BOLD, 14));
         line1.setForeground(new Color(200, 210, 230));
@@ -67,6 +73,8 @@ public class LoadingScreen extends JFrame {
         bar.setPreferredSize(new Dimension(400, 22));
 
         root.add(Box.createVerticalGlue());
+        root.add(logoLabel);
+        root.add(Box.createVerticalStrut(24));
         root.add(line1);
         root.add(Box.createVerticalStrut(8));
         root.add(line2);

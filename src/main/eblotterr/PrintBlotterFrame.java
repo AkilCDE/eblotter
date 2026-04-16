@@ -1,6 +1,7 @@
 package main.eblotterr;
 
 import java.awt.*;
+import java.awt.event.*;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -55,13 +56,54 @@ public class PrintBlotterFrame {
                                String respondent, String date,
                                String status, String address,
                                String complaintType, String description) {
-    JFrame pf = new JFrame("Print Preview - Blotter #" + blotterNum);
+    JDialog pf = new JDialog(parentFrame, "Print Preview - Blotter #" + blotterNum, true);
     pf.setSize(750, 700);
     pf.setMinimumSize(new Dimension(500, 500));
     pf.setLocationRelativeTo(parentFrame);
     pf.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
     pf.setResizable(true);
+    pf.setUndecorated(true);
     pf.getContentPane().setBackground(new Color(240, 242, 245));
+
+    // Custom header with close button and dragging
+    JPanel customHeader = new JPanel(new BorderLayout());
+    customHeader.setBackground(BLUE_DARK);
+    customHeader.setPreferredSize(new Dimension(0, 50));
+    customHeader.setBorder(new EmptyBorder(0, 16, 0, 16));
+
+    JLabel titleLabel = new JLabel("Print Preview - Blotter #" + blotterNum);
+    titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+    titleLabel.setForeground(WHITE);
+    titleLabel.setBorder(new EmptyBorder(0, 0, 0, 0));
+
+    JButton closeHeaderBtn = new JButton("x");
+    closeHeaderBtn.setFont(new Font("Segoe UI", Font.BOLD, 18));
+    closeHeaderBtn.setForeground(WHITE);
+    closeHeaderBtn.setBackground(new Color(0, 0, 0, 0));
+    closeHeaderBtn.setBorderPainted(false);
+    closeHeaderBtn.setContentAreaFilled(false);
+    closeHeaderBtn.setFocusPainted(false);
+    closeHeaderBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+    closeHeaderBtn.setPreferredSize(new Dimension(40, 40));
+    closeHeaderBtn.addActionListener(e -> pf.dispose());
+
+    customHeader.add(titleLabel, BorderLayout.WEST);
+    customHeader.add(closeHeaderBtn, BorderLayout.EAST);
+
+    // Window dragging
+    final int[] dragOffset = new int[2];
+    customHeader.addMouseListener(new MouseAdapter() {
+        public void mousePressed(MouseEvent e) {
+            dragOffset[0] = e.getX();
+            dragOffset[1] = e.getY();
+        }
+    });
+    customHeader.addMouseMotionListener(new MouseMotionAdapter() {
+        public void mouseDragged(MouseEvent e) {
+            Point p = pf.getLocation();
+            pf.setLocation(p.x + e.getX() - dragOffset[0], p.y + e.getY() - dragOffset[1]);
+        }
+    });
 
     // Main content panel with clean white background
     JPanel content = new JPanel();
@@ -84,7 +126,7 @@ public class PrintBlotterFrame {
     republicLabel.setForeground(new Color(45, 118, 200));
     republicLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-    JLabel barangayLabel = new JLabel("Barangay Mabini, Central Visayas");
+    JLabel barangayLabel = new JLabel("Central Visayas");
     barangayLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
     barangayLabel.setForeground(new Color(80, 80, 80));
     barangayLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -166,7 +208,7 @@ public class PrintBlotterFrame {
     respondentName.setFont(new Font("Segoe UI", Font.BOLD, 13));
     respondentName.setAlignmentX(Component.LEFT_ALIGNMENT);
     
-    JLabel respondentAddress = new JLabel("Purok 5, Barangay Mabini");
+    JLabel respondentAddress = new JLabel("Purok 5");
     respondentAddress.setFont(new Font("Segoe UI", Font.PLAIN, 11));
     respondentAddress.setForeground(new Color(100, 100, 100));
     respondentAddress.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -298,7 +340,7 @@ public class PrintBlotterFrame {
     recordedRow.setBackground(Color.WHITE);
     JLabel recordedLabel = new JLabel("Recorded by: ");
     recordedLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
-    JLabel recordedValue = new JLabel("Sec. Maria Santos");
+    JLabel recordedValue = new JLabel("Sec. Deogracias Balili");
     recordedValue.setFont(new Font("Segoe UI", Font.PLAIN, 12));
     recordedRow.add(recordedLabel);
     recordedRow.add(recordedValue);
@@ -329,7 +371,7 @@ public class PrintBlotterFrame {
     captainSigLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
     JLabel captainSigLine = new JLabel("_________________________");
     captainSigLine.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-    JLabel captainSigName = new JLabel("Sgd");
+    JLabel captainSigName = new JLabel("Antonette B. Libut");
     captainSigName.setFont(new Font("Segoe UI", Font.PLAIN, 11));
     captainSigName.setForeground(new Color(100, 100, 100));
     rightSig.add(captainSigLabel);
@@ -447,7 +489,14 @@ public class PrintBlotterFrame {
     scrollPane.setBackground(new Color(240, 242, 245));
     scrollPane.getViewport().setBackground(new Color(240, 242, 245));
 
-    pf.add(scrollPane);
+    // Main panel with custom header
+    JPanel mainPanel = new JPanel(new BorderLayout());
+    mainPanel.setBackground(new Color(240, 242, 245));
+    mainPanel.setBorder(BorderFactory.createLineBorder(Color.BLACK, 1));
+    mainPanel.add(customHeader, BorderLayout.NORTH);
+    mainPanel.add(scrollPane, BorderLayout.CENTER);
+
+    pf.setContentPane(mainPanel);
     pf.setVisible(true);
 }
 
@@ -466,7 +515,7 @@ private JPanel createPrintHeaderPanel() {
     republicLabel.setForeground(new Color(45, 118, 200));
     republicLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
     
-    JLabel barangayLabel = new JLabel("Barangay Mabini, Central Visayas");
+    JLabel barangayLabel = new JLabel("Central Visayas");
     barangayLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
     barangayLabel.setForeground(new Color(80, 80, 80));
     barangayLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -545,7 +594,7 @@ private JPanel createPrintPartiesPanel(String complainant, String respondent, St
     JLabel respondentName = new JLabel(respondent);
     respondentName.setFont(new Font("Segoe UI", Font.BOLD, 13));
     
-    JLabel respondentAddress = new JLabel("Purok 5, Barangay Mabini");
+    JLabel respondentAddress = new JLabel("Purok 5");
     respondentAddress.setFont(new Font("Segoe UI", Font.PLAIN, 11));
     respondentAddress.setForeground(new Color(100, 100, 100));
     
