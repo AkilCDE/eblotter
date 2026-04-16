@@ -45,6 +45,9 @@ public class dashboard extends JFrame {
     private JPanel dashboardPanel;
     private JPanel addBlotterPanel;
     private JPanel historyPanel;
+    private JPanel profilePanel;
+    private JPanel usersPanel;
+    private JPanel settingsPanel;
     
     // ── Dashboard components ────────────────────────────────────────────────
     private JTable table;
@@ -72,6 +75,10 @@ public class dashboard extends JFrame {
     
     // ── Current active panel reference ──────────────────────────────────────
     private AddBlotterPanel currentAddBlotterPanel;
+    
+    // ── Users table model and data ──────────────────────────────────────────
+    private DefaultTableModel usersTableModel;
+    private List<UserData> usersData = new ArrayList<>();
 
     public dashboard() {
         this("User", "secretary");
@@ -237,11 +244,17 @@ public class dashboard extends JFrame {
         dashboardPanel = buildDashboardPanel();
         addBlotterPanel = buildAddBlotterPanelWrapper();
         historyPanel = buildHistoryPanelWrapper();
+        profilePanel = buildProfilePanel();
+        usersPanel = buildUsersPanel();
+        settingsPanel = buildSettingsPanel();
         
         // Add panels to card layout
         cardPanel.add(dashboardPanel, "dashboard");
         cardPanel.add(addBlotterPanel, "addBlotter");
         cardPanel.add(historyPanel, "history");
+        cardPanel.add(profilePanel, "profile");
+        cardPanel.add(usersPanel, "users");
+        cardPanel.add(settingsPanel, "settings");
         
         mainContent.add(cardPanel, BorderLayout.CENTER);
         root.add(mainContent, BorderLayout.CENTER);
@@ -388,7 +401,7 @@ public class dashboard extends JFrame {
 
     private String cap(String s) {
         if (s == null || s.isEmpty()) return s;
-        return s.substring(0, 1).toUpperCase() + s.substring(1);
+        return s.substring(0, 1).toUpperCase() + s.substring(1).toLowerCase();
     }
 
     // ── Sidebar ─────────────────────────────────────────────────────────────
@@ -467,7 +480,8 @@ public class dashboard extends JFrame {
 
         profileBtn = createSidebarButton("Profile", "user", true);
         profileBtn.addActionListener(e -> {
-            showProfile();
+            refreshProfilePanel();
+            cardLayout.show(cardPanel, "profile");
             setActiveButton(profileBtn);
         });
         sidebar.add(profileBtn);
@@ -476,7 +490,8 @@ public class dashboard extends JFrame {
         usersBtn = createSidebarButton("Users", "users", isSecretary());
         usersBtn.addActionListener(e -> {
             if (isSecretary()) {
-                showUsers();
+                refreshUsersPanel();
+                cardLayout.show(cardPanel, "users");
                 setActiveButton(usersBtn);
             } else {
                 JOptionPane.showMessageDialog(this,
@@ -489,7 +504,8 @@ public class dashboard extends JFrame {
 
         settingsBtn = createSidebarButton("Settings", "settings", true);
         settingsBtn.addActionListener(e -> {
-            showSettings();
+            refreshSettingsPanel();
+            cardLayout.show(cardPanel, "settings");
             setActiveButton(settingsBtn);
         });
         sidebar.add(settingsBtn);
@@ -741,11 +757,15 @@ public class dashboard extends JFrame {
         JPanel banner = new JPanel() {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
-                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                GradientPaint gp = new GradientPaint(0, 0, new Color(45, 118, 200),
-                                                      getWidth(), 0, new Color(75, 150, 230));
+                  g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 20));
+                g2.fillRoundRect(4, 4, getWidth() - 6, getHeight() - 6, 16, 16);
+                GradientPaint gp = new GradientPaint(0, 0, BLUE_DARK, getWidth(), 0, new Color(45, 80, 130));
                 g2.setPaint(gp);
-                g2.fillRoundRect(0, 0, getWidth(), getHeight(), 16, 16);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
+                g2.setColor(new Color(255, 255, 255, 30));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth() - 6, getHeight() - 6, 14, 14);
                 g2.dispose();
             }
         };
@@ -1115,34 +1135,26 @@ public class dashboard extends JFrame {
                 super.paintComponent(g);
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                // Shadow for floating effect
                 g2.setColor(new Color(0, 0, 0, 20));
                 g2.fillRoundRect(4, 4, getWidth() - 6, getHeight() - 6, 16, 16);
-
-                // Gradient background
                 GradientPaint gp = new GradientPaint(0, 0, BLUE_DARK, getWidth(), 0, new Color(45, 80, 130));
                 g2.setPaint(gp);
                 g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
-
-                // Subtle border
                 g2.setColor(new Color(255, 255, 255, 30));
                 g2.setStroke(new BasicStroke(1f));
                 g2.drawRoundRect(1, 1, getWidth() - 6, getHeight() - 6, 14, 14);
-
                 g2.dispose();
             }
         };
-        header.setOpaque(false);
-        header.setBorder(new EmptyBorder(16, 24, 16, 24));
-        header.setPreferredSize(new Dimension(0, 70));
+          header.setOpaque(false);
+        header.setLayout(new BorderLayout());
+        header.setBorder(new EmptyBorder(24, 32, 24, 32));
+        header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
+        header.setPreferredSize(new Dimension(0, 100));
 
-        JButton backBtn = new JButton("← Back to Dashboard");
-        backBtn.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        backBtn.setForeground(WHITE);
-        backBtn.setContentAreaFilled(false);
-        backBtn.setBorderPainted(false);
-        backBtn.setFocusPainted(false);
-        backBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+       
+
+        JButton backBtn = createBackButton();
         backBtn.addActionListener(e -> {
             cardLayout.show(cardPanel, "dashboard");
             setActiveButton(homeBtn);
@@ -1156,6 +1168,17 @@ public class dashboard extends JFrame {
         header.add(titleLabel, BorderLayout.CENTER);
         
         return header;
+    }
+
+    private JButton createBackButton() {
+        JButton backBtn = new JButton("← Back to Dashboard");
+        backBtn.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        backBtn.setForeground(WHITE);
+        backBtn.setContentAreaFilled(false);
+        backBtn.setBorderPainted(false);
+        backBtn.setFocusPainted(false);
+        backBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        return backBtn;
     }
 
     // ── History Panel Wrapper ───────────────────────────────────────────────
@@ -1187,38 +1210,27 @@ public class dashboard extends JFrame {
             @Override protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                // Shadow for floating effect
                 g2.setColor(new Color(0, 0, 0, 20));
                 g2.fillRoundRect(4, 4, getWidth() - 6, getHeight() - 6, 16, 16);
-
-                // Gradient background
                 GradientPaint gp = new GradientPaint(0, 0, BLUE_DARK, getWidth(), 0, new Color(45, 80, 130));
                 g2.setPaint(gp);
                 g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
-
-                // Subtle border
                 g2.setColor(new Color(255, 255, 255, 30));
                 g2.setStroke(new BasicStroke(1f));
                 g2.drawRoundRect(1, 1, getWidth() - 6, getHeight() - 6, 14, 14);
-
                 g2.dispose();
             }
         };
         header.setOpaque(false);
-        header.setBorder(new EmptyBorder(16, 24, 16, 24));
-        header.setPreferredSize(new Dimension(0, 80));
+        header.setLayout(new BorderLayout());
+        header.setBorder(new EmptyBorder(20, 28, 20, 28));
+        header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
+        header.setPreferredSize(new Dimension(0, 100));
 
         JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
         leftPanel.setOpaque(false);
 
-        JButton backBtn = new JButton("← Back to Dashboard");
-        backBtn.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        backBtn.setForeground(WHITE);
-        backBtn.setContentAreaFilled(false);
-        backBtn.setBorderPainted(false);
-        backBtn.setFocusPainted(false);
-        backBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        JButton backBtn = createBackButton();
         backBtn.addActionListener(e -> {
             cardLayout.show(cardPanel, "dashboard");
             setActiveButton(homeBtn);
@@ -1468,6 +1480,1152 @@ public class dashboard extends JFrame {
                     "Export Error", JOptionPane.ERROR_MESSAGE);
             }
         }
+    }
+
+    // ── Profile Panel ───────────────────────────────────────────────────────
+    private JPanel buildProfilePanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(PAGE_BG);
+        panel.add(buildProfileHeader(), BorderLayout.NORTH);
+        panel.add(buildProfileContent(), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel buildProfileHeader() {
+        JPanel header = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 20));
+                g2.fillRoundRect(4, 4, getWidth() - 6, getHeight() - 6, 16, 16);
+                GradientPaint gp = new GradientPaint(0, 0, BLUE_DARK, getWidth(), 0, new Color(45, 80, 130));
+                g2.setPaint(gp);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
+                g2.setColor(new Color(255, 255, 255, 30));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth() - 6, getHeight() - 6, 14, 14);
+                g2.dispose();
+            }
+        };
+        header.setOpaque(false);
+        header.setBorder(new EmptyBorder(16, 24, 16, 24));
+        header.setPreferredSize(new Dimension(0, 70));
+
+        JButton backBtn = createBackButton();
+        backBtn.addActionListener(e -> {
+            cardLayout.show(cardPanel, "dashboard");
+            setActiveButton(homeBtn);
+        });
+
+        JLabel titleLabel = new JLabel("My Profile");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(WHITE);
+
+        header.add(backBtn, BorderLayout.WEST);
+        header.add(titleLabel, BorderLayout.CENTER);
+        
+        return header;
+    }
+
+    private JPanel buildProfileContent() {
+        JPanel content = new JPanel();
+        content.setBackground(PAGE_BG);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(new EmptyBorder(24, 24, 24, 24));
+
+        JPanel profileCard = createProfileInfoCard();
+        content.add(profileCard);
+        content.add(Box.createVerticalStrut(20));
+
+        JPanel passwordCard = createPasswordChangeCard();
+        content.add(passwordCard);
+
+        return content;
+    }
+
+    private JPanel createProfileInfoCard() {
+        JPanel card = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(4, 5, getWidth() - 6, getHeight() - 6, 16, 16);
+                g2.setColor(WHITE);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
+                g2.setColor(BORDER_CLR);
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth() - 5, getHeight() - 5, 14, 14);
+                g2.dispose();
+            }
+        };
+        card.setOpaque(false);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(new EmptyBorder(24, 28, 28, 28));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
+
+        JLabel sectionLabel = new JLabel("PROFILE INFORMATION");
+        sectionLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        sectionLabel.setForeground(TEXT_SEC);
+        sectionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel avatarPanel = createProfileAvatar();
+        avatarPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel infoGrid = new JPanel(new GridLayout(0, 2, 20, 12));
+        infoGrid.setOpaque(false);
+        infoGrid.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
+        infoGrid.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        infoGrid.add(createInfoLabel("Username:"));
+        infoGrid.add(createInfoValue(currentUsername));
+        infoGrid.add(createInfoLabel("Role:"));
+        infoGrid.add(createInfoValue(cap(currentRole)));
+
+        card.add(sectionLabel);
+        card.add(Box.createVerticalStrut(16));
+        card.add(avatarPanel);
+        card.add(Box.createVerticalStrut(20));
+        card.add(infoGrid);
+
+        return card;
+    }
+
+    private JPanel createProfileAvatar() {
+        JPanel avatarPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        avatarPanel.setOpaque(false);
+
+        JPanel avatar = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(BLUE);
+                g2.fillOval(0, 0, getWidth(), getHeight());
+                g2.setColor(WHITE);
+                g2.setFont(new Font("Segoe UI", Font.BOLD, 28));
+                FontMetrics fm = g2.getFontMetrics();
+                String initial = (currentUsername != null && !currentUsername.isEmpty())
+                        ? currentUsername.substring(0, 1).toUpperCase() : "U";
+                g2.drawString(initial,
+                    (getWidth() - fm.stringWidth(initial)) / 2,
+                    (getHeight() + fm.getAscent() - fm.getDescent()) / 2);
+                g2.dispose();
+            }
+        };
+        avatar.setOpaque(false);
+        avatar.setPreferredSize(new Dimension(80, 80));
+
+        JPanel namePanel = new JPanel();
+        namePanel.setOpaque(false);
+        namePanel.setLayout(new BoxLayout(namePanel, BoxLayout.Y_AXIS));
+        namePanel.setBorder(new EmptyBorder(0, 16, 0, 0));
+
+        String displayName = currentUsername != null ? currentUsername : "User";
+        if (displayName.contains("_")) {
+            String[] parts = displayName.split("_");
+            displayName = cap(parts[0]) + " " + (parts.length > 1 ? cap(parts[1]) : "");
+        } else {
+            displayName = cap(displayName);
+        }
+
+        JLabel nameLabel = new JLabel(displayName);
+        nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        nameLabel.setForeground(TEXT_PRI);
+
+        JLabel roleLabel = new JLabel(cap(currentRole));
+        roleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        roleLabel.setForeground(TEXT_SEC);
+
+        namePanel.add(nameLabel);
+        namePanel.add(Box.createVerticalStrut(4));
+        namePanel.add(roleLabel);
+
+        avatarPanel.add(avatar);
+        avatarPanel.add(namePanel);
+
+        return avatarPanel;
+    }
+
+    private JLabel createInfoLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        label.setForeground(TEXT_SEC);
+        return label;
+    }
+
+    private JLabel createInfoValue(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        label.setForeground(TEXT_PRI);
+        return label;
+    }
+
+    private JPanel createPasswordChangeCard() {
+        JPanel card = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(4, 5, getWidth() - 6, getHeight() - 6, 16, 16);
+                g2.setColor(WHITE);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
+                g2.setColor(BORDER_CLR);
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth() - 5, getHeight() - 5, 14, 14);
+                g2.dispose();
+            }
+        };
+        card.setOpaque(false);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(new EmptyBorder(24, 28, 28, 28));
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 320));
+
+        JLabel sectionLabel = new JLabel("CHANGE PASSWORD");
+        sectionLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        sectionLabel.setForeground(TEXT_SEC);
+        sectionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPasswordField currentPasswordField = createStyledPasswordField("Current password");
+        currentPasswordField.setAlignmentX(Component.LEFT_ALIGNMENT);
+        currentPasswordField.setMaximumSize(new Dimension(400, 38));
+
+        JPasswordField newPasswordField = createStyledPasswordField("New password");
+        newPasswordField.setAlignmentX(Component.LEFT_ALIGNMENT);
+        newPasswordField.setMaximumSize(new Dimension(400, 38));
+
+        JPasswordField confirmPasswordField = createStyledPasswordField("Confirm new password");
+        confirmPasswordField.setAlignmentX(Component.LEFT_ALIGNMENT);
+        confirmPasswordField.setMaximumSize(new Dimension(400, 38));
+
+        JButton changePasswordBtn = createCardButton("Change Password", BLUE, BLUE_HOVER, WHITE);
+        changePasswordBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        changePasswordBtn.addActionListener(e -> {
+            String currentPass = new String(currentPasswordField.getPassword());
+            String newPass = new String(newPasswordField.getPassword());
+            String confirmPass = new String(confirmPasswordField.getPassword());
+            
+            if (currentPass.isEmpty() || newPass.isEmpty() || confirmPass.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "All fields are required.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            if (!newPass.equals(confirmPass)) {
+                JOptionPane.showMessageDialog(this, "New passwords do not match.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            if (newPass.length() < 6) {
+                JOptionPane.showMessageDialog(this, "Password must be at least 6 characters long.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            JOptionPane.showMessageDialog(this,
+                "Password change functionality requires user table setup.\nThis is a demo feature.",
+                "Information", JOptionPane.INFORMATION_MESSAGE);
+            
+            currentPasswordField.setText("");
+            newPasswordField.setText("");
+            confirmPasswordField.setText("");
+        });
+
+        card.add(sectionLabel);
+        card.add(Box.createVerticalStrut(16));
+        card.add(createFieldLabel("Current Password"));
+        card.add(Box.createVerticalStrut(4));
+        card.add(currentPasswordField);
+        card.add(Box.createVerticalStrut(16));
+        card.add(createFieldLabel("New Password"));
+        card.add(Box.createVerticalStrut(4));
+        card.add(newPasswordField);
+        card.add(Box.createVerticalStrut(16));
+        card.add(createFieldLabel("Confirm New Password"));
+        card.add(Box.createVerticalStrut(4));
+        card.add(confirmPasswordField);
+        card.add(Box.createVerticalStrut(20));
+        card.add(changePasswordBtn);
+
+        return card;
+    }
+
+    private JLabel createFieldLabel(String text) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        label.setForeground(TEXT_PRI);
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return label;
+    }
+
+    private JPasswordField createStyledPasswordField(String placeholder) {
+        JPasswordField field = new JPasswordField();
+        field.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        field.setForeground(TEXT_PRI);
+        field.setBackground(WHITE);
+        field.setBorder(new CompoundBorder(
+            new RoundedBorder(BORDER_CLR, 1, 8),
+            new EmptyBorder(8, 12, 8, 12)));
+        field.setEchoChar('•');
+        
+        field.addFocusListener(new FocusAdapter() {
+            @Override public void focusGained(FocusEvent e) {
+                if (new String(field.getPassword()).equals(placeholder)) {
+                    field.setText("");
+                    field.setForeground(TEXT_PRI);
+                }
+            }
+            @Override public void focusLost(FocusEvent e) {
+                if (new String(field.getPassword()).isEmpty()) {
+                    field.setText(placeholder);
+                    field.setForeground(TEXT_SEC);
+                    field.setEchoChar((char) 0);
+                } else {
+                    field.setEchoChar('•');
+                }
+            }
+        });
+        
+        field.setText(placeholder);
+        field.setForeground(TEXT_SEC);
+        field.setEchoChar((char) 0);
+        
+        return field;
+    }
+
+    private void refreshProfilePanel() {
+        cardPanel.remove(profilePanel);
+        profilePanel = buildProfilePanel();
+        cardPanel.add(profilePanel, "profile");
+        cardPanel.revalidate();
+        cardPanel.repaint();
+    }
+
+    // ── Users Panel ─────────────────────────────────────────────────────────
+    private static class UserData {
+        int id;
+        String username;
+        String fullName;
+        String role;
+        String status;
+        String lastLogin;
+
+        UserData(int id, String username, String fullName, String role, String status, String lastLogin) {
+            this.id = id;
+            this.username = username;
+            this.fullName = fullName;
+            this.role = role;
+            this.status = status;
+            this.lastLogin = lastLogin;
+        }
+    }
+
+    private JPanel buildUsersPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(PAGE_BG);
+        panel.add(buildUsersHeader(), BorderLayout.NORTH);
+        panel.add(buildUsersContent(), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel buildUsersHeader() {
+        JPanel header = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 20));
+                g2.fillRoundRect(4, 4, getWidth() - 6, getHeight() - 6, 16, 16);
+                GradientPaint gp = new GradientPaint(0, 0, BLUE_DARK, getWidth(), 0, new Color(45, 80, 130));
+                g2.setPaint(gp);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
+                g2.setColor(new Color(255, 255, 255, 30));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth() - 6, getHeight() - 6, 14, 14);
+                g2.dispose();
+            }
+        };
+        header.setOpaque(false);
+        header.setBorder(new EmptyBorder(16, 24, 16, 24));
+        header.setPreferredSize(new Dimension(0, 70));
+
+        JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        leftPanel.setOpaque(false);
+
+        JButton backBtn = createBackButton();
+        backBtn.addActionListener(e -> {
+            cardLayout.show(cardPanel, "dashboard");
+            setActiveButton(homeBtn);
+        });
+
+        JLabel titleLabel = new JLabel("User Management");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(WHITE);
+
+        leftPanel.add(backBtn);
+        leftPanel.add(titleLabel);
+
+        JButton addUserBtn = createCardButton("+ Add New User", STAT_GREEN, new Color(40, 150, 100), WHITE);
+        addUserBtn.addActionListener(e -> showAddUserDialog());
+
+        header.add(leftPanel, BorderLayout.WEST);
+        header.add(addUserBtn, BorderLayout.EAST);
+
+        return header;
+    }
+
+    private JPanel buildUsersContent() {
+        JPanel content = new JPanel(new BorderLayout(0, 16));
+        content.setBackground(PAGE_BG);
+        content.setBorder(new EmptyBorder(20, 24, 20, 24));
+
+        content.add(buildUsersFilterBar(), BorderLayout.NORTH);
+        content.add(buildUsersTableContainer(), BorderLayout.CENTER);
+
+        return content;
+    }
+
+    private JPanel buildUsersFilterBar() {
+        JPanel filterCard = new JPanel(new BorderLayout(12, 0)) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(3, 4, getWidth() - 4, getHeight() - 4, 12, 12);
+                g2.setColor(WHITE);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 10, 10);
+                g2.setColor(BORDER_CLR);
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth() - 5, getHeight() - 5, 10, 10);
+                g2.dispose();
+            }
+        };
+        filterCard.setOpaque(false);
+        filterCard.setBorder(new EmptyBorder(12, 20, 12, 20));
+        filterCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 70));
+        filterCard.setPreferredSize(new Dimension(0, 70));
+
+        JPanel filterLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        filterLeft.setOpaque(false);
+
+        JLabel filterLabel = new JLabel("Role:");
+        filterLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        filterLabel.setForeground(TEXT_PRI);
+
+        JComboBox<String> roleFilter = new JComboBox<>(new String[]{"All Users", "Secretary", "Staff", "Admin"});
+        roleFilter.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        roleFilter.setPreferredSize(new Dimension(130, 36));
+        roleFilter.setBackground(WHITE);
+
+        filterLeft.add(filterLabel);
+        filterLeft.add(roleFilter);
+
+        JPanel filterRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        filterRight.setOpaque(false);
+
+        JPanel searchBar = new JPanel(new BorderLayout(10, 0));
+        searchBar.setBackground(WHITE);
+        searchBar.setBorder(new CompoundBorder(
+            new RoundedBorder(BORDER_CLR, 1, 8),
+            new EmptyBorder(0, 12, 0, 0)));
+        searchBar.setPreferredSize(new Dimension(220, 36));
+
+        JLabel searchIcon = new JLabel("\uD83D\uDD0D");
+        searchIcon.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        searchIcon.setForeground(TEXT_SEC);
+
+        JTextField usersSearchField = new JTextField("Search users...");
+        usersSearchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        usersSearchField.setForeground(TEXT_SEC);
+        usersSearchField.setBorder(null);
+        usersSearchField.setOpaque(false);
+
+        searchBar.add(searchIcon, BorderLayout.WEST);
+        searchBar.add(usersSearchField, BorderLayout.CENTER);
+
+        filterRight.add(searchBar);
+
+        filterCard.add(filterLeft, BorderLayout.WEST);
+        filterCard.add(filterRight, BorderLayout.EAST);
+
+        return filterCard;
+    }
+
+    private JPanel buildUsersTableContainer() {
+        String[] columns = {"ID", "Username", "Full Name", "Role", "Status", "Actions"};
+        usersTableModel = new DefaultTableModel(null, columns) {
+            @Override public boolean isCellEditable(int row, int col) { return col == 5; }
+        };
+
+        loadUsersData();
+
+        JTable usersTable = new JTable(usersTableModel) {
+            @Override public Component prepareRenderer(TableCellRenderer r, int row, int col) {
+                Component c = super.prepareRenderer(r, row, col);
+                if (!isRowSelected(row)) {
+                    c.setBackground(row % 2 == 0 ? WHITE : new Color(248, 250, 252));
+                }
+                if (c instanceof JComponent jc) {
+                    jc.setBorder(new EmptyBorder(8, 12, 8, 12));
+                }
+                return c;
+            }
+        };
+
+        usersTable.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        usersTable.setRowHeight(48);
+        usersTable.setShowGrid(false);
+        usersTable.setIntercellSpacing(new Dimension(0, 0));
+        usersTable.setSelectionBackground(BLUE_LIGHT);
+
+        JTableHeader header = usersTable.getTableHeader();
+        header.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        header.setBackground(new Color(240, 245, 250));
+        header.setForeground(TEXT_PRI);
+        header.setBorder(new MatteBorder(0, 0, 1, 0, BORDER_CLR));
+        header.setPreferredSize(new Dimension(0, 42));
+
+        usersTable.getColumnModel().getColumn(4).setCellRenderer((t, val, sel, foc, row, col) -> {
+            String status = val == null ? "" : val.toString();
+            boolean isActive = "Active".equals(status);
+
+            JLabel l = new JLabel(status);
+            l.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            l.setForeground(isActive ? new Color(40, 150, 100) : new Color(200, 80, 80));
+            l.setHorizontalAlignment(SwingConstants.CENTER);
+
+            JPanel wrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 8));
+            wrap.setBackground(row % 2 == 0 ? WHITE : new Color(248, 250, 252));
+
+            JPanel pill = new JPanel() {
+                @Override protected void paintComponent(Graphics g) {
+                    Graphics2D g2 = (Graphics2D) g.create();
+                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g2.setColor(isActive ? new Color(230, 245, 235) : new Color(255, 235, 235));
+                    g2.fillRoundRect(0, 0, getWidth(), getHeight(), 20, 20);
+                    g2.dispose();
+                }
+            };
+            pill.setLayout(new BorderLayout());
+            pill.setOpaque(false);
+            pill.add(l, BorderLayout.CENTER);
+            pill.setBorder(new EmptyBorder(4, 14, 4, 14));
+
+            wrap.add(pill);
+            return wrap;
+        });
+
+        usersTable.getColumnModel().getColumn(5).setCellRenderer(new UserActionsRenderer());
+        usersTable.getColumnModel().getColumn(5).setCellEditor(new UserActionsEditor(new JCheckBox()));
+
+        JScrollPane scroll = new JScrollPane(usersTable);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getViewport().setBackground(WHITE);
+
+        JPanel container = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(4, 5, getWidth() - 6, getHeight() - 6, 16, 16);
+                g2.setColor(WHITE);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
+                g2.setColor(BORDER_CLR);
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth() - 5, getHeight() - 5, 14, 14);
+                g2.dispose();
+            }
+        };
+        container.setOpaque(false);
+        container.setBorder(new EmptyBorder(4, 4, 4, 4));
+        container.add(scroll, BorderLayout.CENTER);
+
+        return container;
+    }
+
+    private void loadUsersData() {
+        usersData.clear();
+        usersTableModel.setRowCount(0);
+        
+        // Add current user
+        usersData.add(new UserData(1, currentUsername, cap(currentUsername), currentRole, "Active", "Today"));
+        usersTableModel.addRow(new Object[]{"#1", currentUsername, cap(currentUsername), cap(currentRole), "Active", "Actions"});
+        
+        // Add demo users if secretary
+        if (isSecretary()) {
+            usersData.add(new UserData(2, "staff_user", "Staff User", "staff", "Active", "Yesterday"));
+            usersTableModel.addRow(new Object[]{"#2", "staff_user", "Staff User", "Staff", "Active", "Actions"});
+            
+            usersData.add(new UserData(3, "admin_user", "Admin User", "admin", "Active", "Nov 15, 2024"));
+            usersTableModel.addRow(new Object[]{"#3", "admin_user", "Admin User", "Admin", "Active", "Actions"});
+        }
+    }
+
+    private void showAddUserDialog() {
+        JDialog dialog = new JDialog(this, "Add New User", true);
+        dialog.setSize(450, 400);
+        dialog.setLocationRelativeTo(this);
+        dialog.setResizable(false);
+
+        JPanel content = new JPanel();
+        content.setBackground(WHITE);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(new EmptyBorder(24, 24, 24, 24));
+
+        JLabel titleLabel = new JLabel("Add New User");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setForeground(TEXT_PRI);
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JTextField usernameField = createStyledTextField("Username");
+        usernameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        usernameField.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JTextField fullNameField = createStyledTextField("Full Name");
+        fullNameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        fullNameField.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPasswordField passwordField = createStyledPasswordField("Password");
+        passwordField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        passwordField.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JComboBox<String> roleCombo = new JComboBox<>(new String[]{"staff", "secretary", "admin"});
+        roleCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        roleCombo.setBackground(WHITE);
+        roleCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        roleCombo.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        buttonPanel.setOpaque(false);
+        buttonPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        buttonPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+
+        JButton saveBtn = createCardButton("Create User", BLUE, BLUE_HOVER, WHITE);
+        JButton cancelBtn = createCardButton("Cancel", new Color(108, 117, 125), new Color(90, 98, 104), WHITE);
+
+        saveBtn.addActionListener(e -> {
+            String username = usernameField.getText().trim();
+            String fullName = fullNameField.getText().trim();
+            String password = new String(passwordField.getPassword());
+            String role = (String) roleCombo.getSelectedItem();
+
+            if (username.isEmpty() || username.equals("Username")) {
+                JOptionPane.showMessageDialog(dialog, "Username is required.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            int newId = usersData.size() + 1;
+            usersData.add(new UserData(newId, username, fullName, role, "Active", "Never"));
+            usersTableModel.addRow(new Object[]{"#" + newId, username, fullName, cap(role), "Active", "Actions"});
+            
+            dialog.dispose();
+            JOptionPane.showMessageDialog(this, "User created successfully!",
+                "Success", JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        cancelBtn.addActionListener(e -> dialog.dispose());
+
+        buttonPanel.add(saveBtn);
+        buttonPanel.add(cancelBtn);
+
+        content.add(titleLabel);
+        content.add(Box.createVerticalStrut(20));
+        content.add(createFieldLabel("Username"));
+        content.add(Box.createVerticalStrut(4));
+        content.add(usernameField);
+        content.add(Box.createVerticalStrut(16));
+        content.add(createFieldLabel("Full Name"));
+        content.add(Box.createVerticalStrut(4));
+        content.add(fullNameField);
+        content.add(Box.createVerticalStrut(16));
+        content.add(createFieldLabel("Password"));
+        content.add(Box.createVerticalStrut(4));
+        content.add(passwordField);
+        content.add(Box.createVerticalStrut(16));
+        content.add(createFieldLabel("Role"));
+        content.add(Box.createVerticalStrut(4));
+        content.add(roleCombo);
+        content.add(Box.createVerticalStrut(24));
+        content.add(buttonPanel);
+
+        dialog.setContentPane(content);
+        dialog.setVisible(true);
+    }
+
+    private void showEditUserDialog(UserData user) {
+        JDialog dialog = new JDialog(this, "Edit User", true);
+        dialog.setSize(450, 350);
+        dialog.setLocationRelativeTo(this);
+        dialog.setResizable(false);
+
+        JPanel content = new JPanel();
+        content.setBackground(WHITE);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(new EmptyBorder(24, 24, 24, 24));
+
+        JLabel titleLabel = new JLabel("Edit User: " + user.username);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        titleLabel.setForeground(TEXT_PRI);
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JTextField fullNameField = createStyledTextField("Full Name");
+        fullNameField.setText(user.fullName);
+        fullNameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        fullNameField.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JComboBox<String> roleCombo = new JComboBox<>(new String[]{"staff", "secretary", "admin"});
+        roleCombo.setSelectedItem(user.role.toLowerCase());
+        roleCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        roleCombo.setBackground(WHITE);
+        roleCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        roleCombo.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JComboBox<String> statusCombo = new JComboBox<>(new String[]{"Active", "Inactive"});
+        statusCombo.setSelectedItem(user.status);
+        statusCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        statusCombo.setBackground(WHITE);
+        statusCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        statusCombo.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        buttonPanel.setOpaque(false);
+        buttonPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        buttonPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
+
+        JButton saveBtn = createCardButton("Save Changes", BLUE, BLUE_HOVER, WHITE);
+        JButton cancelBtn = createCardButton("Cancel", new Color(108, 117, 125), new Color(90, 98, 104), WHITE);
+
+        saveBtn.addActionListener(e -> {
+            user.fullName = fullNameField.getText().trim();
+            user.role = (String) roleCombo.getSelectedItem();
+            user.status = (String) statusCombo.getSelectedItem();
+            
+            // Update table
+            for (int i = 0; i < usersTableModel.getRowCount(); i++) {
+                if (usersTableModel.getValueAt(i, 1).equals(user.username)) {
+                    usersTableModel.setValueAt(user.fullName, i, 2);
+                    usersTableModel.setValueAt(cap(user.role), i, 3);
+                    usersTableModel.setValueAt(user.status, i, 4);
+                    break;
+                }
+            }
+            
+            dialog.dispose();
+            JOptionPane.showMessageDialog(this, "User updated successfully!",
+                "Success", JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        cancelBtn.addActionListener(e -> dialog.dispose());
+
+        buttonPanel.add(saveBtn);
+        buttonPanel.add(cancelBtn);
+
+        content.add(titleLabel);
+        content.add(Box.createVerticalStrut(20));
+        content.add(createFieldLabel("Full Name"));
+        content.add(Box.createVerticalStrut(4));
+        content.add(fullNameField);
+        content.add(Box.createVerticalStrut(16));
+        content.add(createFieldLabel("Role"));
+        content.add(Box.createVerticalStrut(4));
+        content.add(roleCombo);
+        content.add(Box.createVerticalStrut(16));
+        content.add(createFieldLabel("Status"));
+        content.add(Box.createVerticalStrut(4));
+        content.add(statusCombo);
+        content.add(Box.createVerticalStrut(24));
+        content.add(buttonPanel);
+
+        dialog.setContentPane(content);
+        dialog.setVisible(true);
+    }
+
+    private void deleteUser(int userId, String username) {
+        if (username.equals(currentUsername)) {
+            JOptionPane.showMessageDialog(this,
+                "You cannot delete your own account.",
+                "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+        
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "Are you sure you want to delete user '" + username + "'?",
+            "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            usersData.removeIf(u -> u.id == userId);
+            for (int i = 0; i < usersTableModel.getRowCount(); i++) {
+                if (usersTableModel.getValueAt(i, 1).equals(username)) {
+                    usersTableModel.removeRow(i);
+                    break;
+                }
+            }
+            JOptionPane.showMessageDialog(this, "User deleted successfully!",
+                "Success", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void refreshUsersPanel() {
+        cardPanel.remove(usersPanel);
+        usersPanel = buildUsersPanel();
+        cardPanel.add(usersPanel, "users");
+        cardPanel.revalidate();
+        cardPanel.repaint();
+    }
+
+    class UserActionsRenderer extends JPanel implements TableCellRenderer {
+        private final JButton editBtn;
+        private final JButton deleteBtn;
+
+        UserActionsRenderer() {
+            setOpaque(true);
+            setLayout(new FlowLayout(FlowLayout.CENTER, 6, 6));
+            
+            editBtn = createActionButton("Edit", BLUE, new Color(230, 242, 255));
+            deleteBtn = createActionButton("Delete", new Color(220, 53, 69), new Color(255, 235, 235));
+            
+            add(editBtn);
+            add(deleteBtn);
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table, Object value, boolean isSelected,
+                boolean hasFocus, int row, int column) {
+            setBackground(isSelected
+                ? table.getSelectionBackground()
+                : (row % 2 == 0 ? WHITE : new Color(248, 250, 252)));
+            return this;
+        }
+    }
+
+    class UserActionsEditor extends DefaultCellEditor {
+        private final JPanel panel;
+        private final JButton editBtn;
+        private final JButton deleteBtn;
+        private int currentRow;
+
+        UserActionsEditor(JCheckBox checkBox) {
+            super(checkBox);
+            
+            panel = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 6));
+            panel.setOpaque(true);
+            
+            editBtn = createActionButton("Edit", BLUE, new Color(230, 242, 255));
+            deleteBtn = createActionButton("Delete", new Color(220, 53, 69), new Color(255, 235, 235));
+            
+            editBtn.addActionListener(e -> {
+                stopCellEditing();
+                SwingUtilities.invokeLater(() -> {
+                    if (currentRow >= 0 && currentRow < usersData.size()) {
+                        showEditUserDialog(usersData.get(currentRow));
+                    }
+                });
+            });
+            
+            deleteBtn.addActionListener(e -> {
+                stopCellEditing();
+                SwingUtilities.invokeLater(() -> {
+                    if (currentRow >= 0 && currentRow < usersData.size()) {
+                        UserData user = usersData.get(currentRow);
+                        deleteUser(user.id, user.username);
+                    }
+                });
+            });
+            
+            panel.add(editBtn);
+            panel.add(deleteBtn);
+        }
+
+        @Override
+        public Component getTableCellEditorComponent(
+                JTable table, Object value, boolean isSelected, int row, int column) {
+            currentRow = row;
+            panel.setBackground(isSelected
+                ? table.getSelectionBackground()
+                : (row % 2 == 0 ? WHITE : new Color(248, 250, 252)));
+            return panel;
+        }
+
+        @Override
+        public Object getCellEditorValue() {
+            return "";
+        }
+    }
+
+    // ── Settings Panel ──────────────────────────────────────────────────────
+    private static class SettingsData {
+        boolean autoBackup;
+        String backupFrequency;
+        boolean emailNotifications;
+        boolean newCaseNotifications;
+        boolean statusChangeNotifications;
+
+        SettingsData(boolean autoBackup, String backupFrequency, boolean emailNotifications,
+                     boolean newCaseNotifications, boolean statusChangeNotifications) {
+            this.autoBackup = autoBackup;
+            this.backupFrequency = backupFrequency;
+            this.emailNotifications = emailNotifications;
+            this.newCaseNotifications = newCaseNotifications;
+            this.statusChangeNotifications = statusChangeNotifications;
+        }
+    }
+
+    private SettingsData currentSettings = new SettingsData(false, "Daily", false, true, true);
+
+    private JPanel buildSettingsPanel() {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(PAGE_BG);
+        panel.add(buildSettingsHeader(), BorderLayout.NORTH);
+        panel.add(buildSettingsContent(), BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JPanel buildSettingsHeader() {
+        JPanel header = new JPanel(new BorderLayout()) {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 20));
+                g2.fillRoundRect(4, 4, getWidth() - 6, getHeight() - 6, 16, 16);
+                GradientPaint gp = new GradientPaint(0, 0, BLUE_DARK, getWidth(), 0, new Color(45, 80, 130));
+                g2.setPaint(gp);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
+                g2.setColor(new Color(255, 255, 255, 30));
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth() - 6, getHeight() - 6, 14, 14);
+                g2.dispose();
+            }
+        };
+        header.setOpaque(false);
+        header.setBorder(new EmptyBorder(16, 24, 16, 24));
+        header.setPreferredSize(new Dimension(0, 70));
+
+        JButton backBtn = createBackButton();
+        backBtn.addActionListener(e -> {
+            cardLayout.show(cardPanel, "dashboard");
+            setActiveButton(homeBtn);
+        });
+
+        JLabel titleLabel = new JLabel("System Settings");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(WHITE);
+
+        header.add(backBtn, BorderLayout.WEST);
+        header.add(titleLabel, BorderLayout.CENTER);
+
+        return header;
+    }
+
+    private JPanel buildSettingsContent() {
+        JPanel content = new JPanel();
+        content.setBackground(PAGE_BG);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(new EmptyBorder(24, 24, 24, 24));
+
+        // General Settings Card
+        JPanel generalCard = createSettingsCard("GENERAL SETTINGS");
+        generalCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 250));
+
+        JCheckBox autoBackupCheck = createStyledCheckBox("Enable automatic database backup");
+        autoBackupCheck.setSelected(currentSettings.autoBackup);
+        autoBackupCheck.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JComboBox<String> backupFreqCombo = new JComboBox<>(new String[]{"Daily", "Weekly", "Monthly"});
+        backupFreqCombo.setSelectedItem(currentSettings.backupFrequency);
+        backupFreqCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        backupFreqCombo.setBackground(WHITE);
+        backupFreqCombo.setMaximumSize(new Dimension(300, 38));
+        backupFreqCombo.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        generalCard.add(autoBackupCheck);
+        generalCard.add(Box.createVerticalStrut(12));
+        generalCard.add(createFieldLabel("Backup Frequency"));
+        generalCard.add(Box.createVerticalStrut(4));
+        generalCard.add(backupFreqCombo);
+
+        // Notification Settings Card
+        JPanel notifCard = createSettingsCard("NOTIFICATION SETTINGS");
+        notifCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 250));
+
+        JCheckBox emailNotifCheck = createStyledCheckBox("Enable email notifications");
+        emailNotifCheck.setSelected(currentSettings.emailNotifications);
+        emailNotifCheck.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JCheckBox newCaseNotifCheck = createStyledCheckBox("Notify on new blotter cases");
+        newCaseNotifCheck.setSelected(currentSettings.newCaseNotifications);
+        newCaseNotifCheck.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JCheckBox statusNotifCheck = createStyledCheckBox("Notify on status changes");
+        statusNotifCheck.setSelected(currentSettings.statusChangeNotifications);
+        statusNotifCheck.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        notifCard.add(emailNotifCheck);
+        notifCard.add(Box.createVerticalStrut(8));
+        notifCard.add(newCaseNotifCheck);
+        notifCard.add(Box.createVerticalStrut(8));
+        notifCard.add(statusNotifCheck);
+
+        // System Settings Card
+        JPanel systemCard = createSettingsCard("SYSTEM MAINTENANCE");
+        systemCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
+
+        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        buttonRow.setOpaque(false);
+        buttonRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JButton backupNowBtn = createCardButton("Backup Now", BLUE, BLUE_HOVER, WHITE);
+        backupNowBtn.addActionListener(e -> performBackup());
+
+        JButton clearCacheBtn = createCardButton("Clear Cache", new Color(108, 117, 125), new Color(90, 98, 104), WHITE);
+        clearCacheBtn.addActionListener(e -> clearCache());
+
+        JButton resetSettingsBtn = createCardButton("Reset to Default", new Color(255, 193, 7), new Color(230, 170, 0), TEXT_PRI);
+        resetSettingsBtn.addActionListener(e -> resetSettingsToDefault());
+
+        buttonRow.add(backupNowBtn);
+        buttonRow.add(clearCacheBtn);
+        buttonRow.add(resetSettingsBtn);
+
+        systemCard.add(buttonRow);
+
+        // Save Button
+        JButton saveSettingsBtn = createCardButton("Save All Settings", STAT_GREEN, new Color(40, 150, 100), WHITE);
+        saveSettingsBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
+        saveSettingsBtn.setMaximumSize(new Dimension(200, 44));
+        saveSettingsBtn.addActionListener(e -> {
+            currentSettings = new SettingsData(
+                autoBackupCheck.isSelected(),
+                (String) backupFreqCombo.getSelectedItem(),
+                emailNotifCheck.isSelected(),
+                newCaseNotifCheck.isSelected(),
+                statusNotifCheck.isSelected()
+            );
+            JOptionPane.showMessageDialog(this, "Settings saved successfully!",
+                "Success", JOptionPane.INFORMATION_MESSAGE);
+        });
+
+        content.add(generalCard);
+        content.add(Box.createVerticalStrut(20));
+        content.add(notifCard);
+        content.add(Box.createVerticalStrut(20));
+        content.add(systemCard);
+        content.add(Box.createVerticalStrut(20));
+        content.add(saveSettingsBtn);
+
+        return content;
+    }
+
+    private JPanel createSettingsCard(String title) {
+        JPanel card = new JPanel() {
+            @Override protected void paintComponent(Graphics g) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2.setColor(new Color(0, 0, 0, 15));
+                g2.fillRoundRect(4, 5, getWidth() - 6, getHeight() - 6, 16, 16);
+                g2.setColor(WHITE);
+                g2.fillRoundRect(0, 0, getWidth() - 4, getHeight() - 4, 14, 14);
+                g2.setColor(BORDER_CLR);
+                g2.setStroke(new BasicStroke(1f));
+                g2.drawRoundRect(1, 1, getWidth() - 5, getHeight() - 5, 14, 14);
+                g2.dispose();
+            }
+        };
+        card.setOpaque(false);
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(new EmptyBorder(24, 28, 28, 28));
+
+        JLabel sectionLabel = new JLabel(title);
+        sectionLabel.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        sectionLabel.setForeground(TEXT_SEC);
+        sectionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        card.add(sectionLabel);
+        card.add(Box.createVerticalStrut(16));
+
+        return card;
+    }
+
+    private JCheckBox createStyledCheckBox(String text) {
+        JCheckBox checkBox = new JCheckBox(text);
+        checkBox.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        checkBox.setForeground(TEXT_PRI);
+        checkBox.setOpaque(false);
+        checkBox.setFocusPainted(false);
+        return checkBox;
+    }
+
+    private void performBackup() {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("Select Backup Location");
+        fileChooser.setSelectedFile(new java.io.File("eblotter_backup_" +
+            LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd")) + ".sql"));
+
+        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
+            JOptionPane.showMessageDialog(this,
+                "Backup feature requires MySQL to be in system PATH.\n" +
+                "File would be saved to: " + fileChooser.getSelectedFile().getAbsolutePath(),
+                "Backup Information", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void clearCache() {
+        blotterData.clear();
+        loadBlotterData();
+        refreshTableAndStats();
+        JOptionPane.showMessageDialog(this,
+            "Cache cleared successfully! Data reloaded from database.",
+            "Success", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void resetSettingsToDefault() {
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "Reset all settings to default values?",
+            "Confirm Reset", JOptionPane.YES_NO_OPTION);
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            currentSettings = new SettingsData(false, "Daily", false, true, true);
+            refreshSettingsPanel();
+            JOptionPane.showMessageDialog(this,
+                "Settings reset to default values.",
+                "Success", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    private void refreshSettingsPanel() {
+        cardPanel.remove(settingsPanel);
+        settingsPanel = buildSettingsPanel();
+        cardPanel.add(settingsPanel, "settings");
+        cardPanel.revalidate();
+        cardPanel.repaint();
+    }
+
+    private JTextField createStyledTextField(String placeholder) {
+        JTextField field = new JTextField();
+        field.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        field.setForeground(TEXT_PRI);
+        field.setBackground(WHITE);
+        field.setBorder(new CompoundBorder(
+            new RoundedBorder(BORDER_CLR, 1, 8),
+            new EmptyBorder(8, 12, 8, 12)));
+
+        field.addFocusListener(new FocusAdapter() {
+            @Override public void focusGained(FocusEvent e) {
+                if (field.getText().equals(placeholder)) {
+                    field.setText("");
+                    field.setForeground(TEXT_PRI);
+                }
+            }
+            @Override public void focusLost(FocusEvent e) {
+                if (field.getText().isEmpty()) {
+                    field.setText(placeholder);
+                    field.setForeground(TEXT_SEC);
+                }
+            }
+        });
+
+        field.setText(placeholder);
+        field.setForeground(TEXT_SEC);
+        return field;
     }
 
     // ── Button Renderer/Editor ─────────────────────────────────────────────
@@ -1804,61 +2962,7 @@ public class dashboard extends JFrame {
         }.execute();
     }
 
-    // ── Sidebar Actions ───────────────────────────────────────────────────
-    private void showProfile() {
-        JDialog dialog = new JDialog(this, "User Profile", true);
-        dialog.setSize(400, 300);
-        dialog.setLocationRelativeTo(this);
-        
-        JPanel content = new JPanel();
-        content.setBackground(WHITE);
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setBorder(new EmptyBorder(30, 30, 30, 30));
-        
-        JLabel iconLabel = new JLabel("👤");
-        iconLabel.setFont(new Font("Segoe UI", Font.PLAIN, 48));
-        iconLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        
-        JLabel nameLabel = new JLabel(currentUsername);
-        nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
-        nameLabel.setForeground(TEXT_PRI);
-        nameLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        
-        JLabel roleLabel = new JLabel("Role: " + cap(currentRole));
-        roleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        roleLabel.setForeground(TEXT_SEC);
-        roleLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-        
-        content.add(iconLabel);
-        content.add(Box.createVerticalStrut(20));
-        content.add(nameLabel);
-        content.add(Box.createVerticalStrut(8));
-        content.add(roleLabel);
-        
-        dialog.setContentPane(content);
-        dialog.setVisible(true);
-    }
-
-    private void showUsers() {
-        JOptionPane.showMessageDialog(this,
-            "User management feature coming soon.\n\n" +
-            "This will allow you to:\n" +
-            "• Add new users\n" +
-            "• Edit user roles\n" +
-            "• Deactivate accounts",
-            "User Management", JOptionPane.INFORMATION_MESSAGE);
-    }
-
-    private void showSettings() {
-        JOptionPane.showMessageDialog(this,
-            "Settings feature coming soon.\n\n" +
-            "This will allow you to configure:\n" +
-            "• System preferences\n" +
-            "• Notification settings\n" +
-            "• Database backup options",
-            "Settings", JOptionPane.INFORMATION_MESSAGE);
-    }
-
+    // ── Logout ─────────────────────────────────────────────────────────────
     private void logout() {
         int confirm = JOptionPane.showConfirmDialog(
             this, "Are you sure you want to logout?",
@@ -1955,19 +3059,10 @@ public class dashboard extends JFrame {
             JPanel header = new JPanel(new BorderLayout()) {
                 @Override protected void paintComponent(Graphics g) {
                     Graphics2D g2 = (Graphics2D) g.create();
-                    g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                    
-
-                   
-                   
-
                   
-
-                
                 }
             };
-          
+           
             return header;
         }
 
@@ -2125,130 +3220,34 @@ public class dashboard extends JFrame {
         }
 
         private void showDatePicker() {
-            JDialog dateDialog = new JDialog(parentDialog, "Select Date", true);
-            dateDialog.setSize(350, 300);
-            dateDialog.setLocationRelativeTo(parentDialog);
-            dateDialog.setLayout(new BorderLayout());
-
-            JPanel calendarPanel = new JPanel(new BorderLayout());
-            calendarPanel.setBackground(Color.WHITE);
-            calendarPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
-            JPanel monthYearPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
-            monthYearPanel.setBackground(Color.WHITE);
-
             java.util.Calendar cal = java.util.Calendar.getInstance();
             cal.setTime(selectedDate);
-
-            String[] months = {"January", "February", "March", "April", "May", "June",
-                              "July", "August", "September", "October", "November", "December"};
-            JComboBox<String> monthCombo = new JComboBox<>(months);
-            monthCombo.setSelectedIndex(cal.get(java.util.Calendar.MONTH));
-            monthCombo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-
+            
+            JSpinner daySpinner = new JSpinner(new SpinnerNumberModel(
+                cal.get(java.util.Calendar.DAY_OF_MONTH), 1, 31, 1));
+            JSpinner monthSpinner = new JSpinner(new SpinnerNumberModel(
+                cal.get(java.util.Calendar.MONTH) + 1, 1, 12, 1));
             JSpinner yearSpinner = new JSpinner(new SpinnerNumberModel(
-                cal.get(java.util.Calendar.YEAR), 1900, 2100, 1));
-            yearSpinner.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+                cal.get(java.util.Calendar.YEAR), 2000, 2100, 1));
 
-            monthYearPanel.add(monthCombo);
-            monthYearPanel.add(yearSpinner);
+            JPanel panel = new JPanel(new GridLayout(3, 2, 5, 5));
+            panel.add(new JLabel("Day:"));
+            panel.add(daySpinner);
+            panel.add(new JLabel("Month:"));
+            panel.add(monthSpinner);
+            panel.add(new JLabel("Year:"));
+            panel.add(yearSpinner);
 
-            JPanel daysPanel = new JPanel(new GridLayout(0, 7, 2, 2));
-            daysPanel.setBackground(Color.WHITE);
-
-            String[] dayNames = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
-            for (String day : dayNames) {
-                JLabel label = new JLabel(day, SwingConstants.CENTER);
-                label.setFont(new Font("Segoe UI", Font.BOLD, 10));
-                label.setForeground(TEXT_SEC);
-                daysPanel.add(label);
-            }
-
-            JButton[] dayButtons = new JButton[42];
-            for (int i = 0; i < 42; i++) {
-                dayButtons[i] = new JButton();
-                dayButtons[i].setFont(new Font("Segoe UI", Font.PLAIN, 11));
-                dayButtons[i].setBackground(Color.WHITE);
-                dayButtons[i].setFocusPainted(false);
-                dayButtons[i].setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
-                final int index = i;
-                dayButtons[i].addActionListener(e -> {
-                    JButton source = (JButton) e.getSource();
-                    int day = Integer.parseInt(source.getText());
-
-                    java.util.Calendar selectedCal = java.util.Calendar.getInstance();
-                    selectedCal.set(java.util.Calendar.YEAR, (Integer) yearSpinner.getValue());
-                    selectedCal.set(java.util.Calendar.MONTH, monthCombo.getSelectedIndex());
-                    selectedCal.set(java.util.Calendar.DAY_OF_MONTH, day);
-
-                    selectedDate = selectedCal.getTime();
-                    btnDatePicker.setText(new java.text.SimpleDateFormat("MM/dd/yyyy").format(selectedDate));
-                    dateDialog.dispose();
-                });
-                daysPanel.add(dayButtons[i]);
-            }
-
-            Runnable updateDays = () -> {
-                java.util.Calendar tempCal = java.util.Calendar.getInstance();
-                tempCal.set(java.util.Calendar.YEAR, (Integer) yearSpinner.getValue());
-                tempCal.set(java.util.Calendar.MONTH, monthCombo.getSelectedIndex());
-                tempCal.set(java.util.Calendar.DAY_OF_MONTH, 1);
-
-                int firstDayOfWeek = tempCal.get(java.util.Calendar.DAY_OF_WEEK) - 1;
-                int daysInMonth = tempCal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH);
-
-                for (int i = 0; i < 42; i++) {
-                    dayButtons[i].setText("");
-                    dayButtons[i].setEnabled(false);
-                }
-
-                for (int i = 1; i <= daysInMonth; i++) {
-                    int index = firstDayOfWeek + i - 1;
-                    dayButtons[index].setText(String.valueOf(i));
-                    dayButtons[index].setEnabled(true);
-
-                    java.util.Calendar checkCal = java.util.Calendar.getInstance();
-                    checkCal.setTime(selectedDate);
-                    if (checkCal.get(java.util.Calendar.YEAR) == (Integer) yearSpinner.getValue() &&
-                        checkCal.get(java.util.Calendar.MONTH) == monthCombo.getSelectedIndex() &&
-                        checkCal.get(java.util.Calendar.DAY_OF_MONTH) == i) {
-                        dayButtons[index].setBackground(BLUE_LIGHT);
-                        dayButtons[index].setForeground(BLUE);
-                    } else {
-                        dayButtons[index].setBackground(Color.WHITE);
-                        dayButtons[index].setForeground(TEXT_PRI);
-                    }
-                }
-            };
-
-            monthCombo.addActionListener(e -> updateDays.run());
-            yearSpinner.addChangeListener(e -> updateDays.run());
-            updateDays.run();
-
-            calendarPanel.add(monthYearPanel, BorderLayout.NORTH);
-            calendarPanel.add(daysPanel, BorderLayout.CENTER);
-
-            JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-            buttonPanel.setBackground(Color.WHITE);
-
-            JButton todayBtn = new JButton("Today");
-            todayBtn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-            todayBtn.addActionListener(e -> {
-                selectedDate = new java.util.Date();
+            int result = JOptionPane.showConfirmDialog(this, panel, "Select Date",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            
+            if (result == JOptionPane.OK_OPTION) {
+                cal.set(java.util.Calendar.DAY_OF_MONTH, (Integer) daySpinner.getValue());
+                cal.set(java.util.Calendar.MONTH, (Integer) monthSpinner.getValue() - 1);
+                cal.set(java.util.Calendar.YEAR, (Integer) yearSpinner.getValue());
+                selectedDate = cal.getTime();
                 btnDatePicker.setText(new java.text.SimpleDateFormat("MM/dd/yyyy").format(selectedDate));
-                dateDialog.dispose();
-            });
-
-            JButton cancelBtn = new JButton("Cancel");
-            cancelBtn.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-            cancelBtn.addActionListener(e -> dateDialog.dispose());
-
-            buttonPanel.add(todayBtn);
-            buttonPanel.add(cancelBtn);
-
-            dateDialog.add(calendarPanel, BorderLayout.CENTER);
-            dateDialog.add(buttonPanel, BorderLayout.SOUTH);
-            dateDialog.setVisible(true);
+            }
         }
 
         private JPanel buildIncidentDetailsCard() {
@@ -2301,8 +3300,9 @@ public class dashboard extends JFrame {
             row.setOpaque(false);
             row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 50));
 
-            JButton saveBtn = createCardButton("Save Blotter Entry", "save", BTN_SAVE_BG,
-                new Color(30, 80, 140), BTN_SAVE_FG, e -> saveBlotterToDB());
+            JButton saveBtn = createCardButton("Save Blotter Entry", BTN_SAVE_BG,
+                new Color(30, 80, 140), BTN_SAVE_FG);
+            saveBtn.addActionListener(e -> saveBlotterToDB());
 
             row.add(saveBtn);
             return row;
@@ -2327,58 +3327,24 @@ public class dashboard extends JFrame {
             final String complaintType = (String) cbComplaintType.getSelectedItem();
             final String description = taDescription.getText().trim();
 
-            if (cFirstName.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please enter complainant's first name.",
+            if (cFirstName.isEmpty() || cMiddleName.isEmpty() || cLastName.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please complete complainant information.",
                     "Validation Error", JOptionPane.ERROR_MESSAGE);
-                tfCFirstName.requestFocus();
                 return;
             }
-            if (cMiddleName.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please enter complainant's middle name.",
+            if (rFirstName.isEmpty() || rMiddleName.isEmpty() || rLastName.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please complete respondent information.",
                     "Validation Error", JOptionPane.ERROR_MESSAGE);
-                tfCMiddleName.requestFocus();
                 return;
             }
-            if (cLastName.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please enter complainant's last name.",
+            if (mobileNumber.isEmpty() || purok.isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Please enter mobile number and purok.",
                     "Validation Error", JOptionPane.ERROR_MESSAGE);
-                tfCLastName.requestFocus();
-                return;
-            }
-            if (rFirstName.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please enter respondent's first name.",
-                    "Validation Error", JOptionPane.ERROR_MESSAGE);
-                tfRFirstName.requestFocus();
-                return;
-            }
-            if (rMiddleName.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please enter respondent's middle name.",
-                    "Validation Error", JOptionPane.ERROR_MESSAGE);
-                tfRMiddleName.requestFocus();
-                return;
-            }
-            if (rLastName.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please enter respondent's last name.",
-                    "Validation Error", JOptionPane.ERROR_MESSAGE);
-                tfRLastName.requestFocus();
-                return;
-            }
-            if (mobileNumber.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please enter complainant's mobile number.",
-                    "Validation Error", JOptionPane.ERROR_MESSAGE);
-                tfMobileNumber.requestFocus();
-                return;
-            }
-            if (purok.isEmpty()) {
-                JOptionPane.showMessageDialog(this, "Please enter complainant's purok.",
-                    "Validation Error", JOptionPane.ERROR_MESSAGE);
-                tfPurok.requestFocus();
                 return;
             }
             if (description.isEmpty()) {
                 JOptionPane.showMessageDialog(this, "Please enter incident description.",
                     "Validation Error", JOptionPane.ERROR_MESSAGE);
-                taDescription.requestFocus();
                 return;
             }
 
@@ -2576,7 +3542,7 @@ public class dashboard extends JFrame {
             return tf;
         }
 
-        private JButton createCardButton(String text, String iconName, Color bg, Color hover, Color fg, ActionListener listener) {
+        private JButton createCardButton(String text, Color bg, Color hover, Color fg) {
             JButton btn = new JButton(text) {
                 @Override protected void paintComponent(Graphics g) {
                     Graphics2D g2 = (Graphics2D) g.create();
@@ -2594,31 +3560,12 @@ public class dashboard extends JFrame {
                     }
                     g2.fillRoundRect(0, 0, w - 2, h - 2, 12, 12);
                     g2.setColor(fg);
-                    g2.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                    int iconX = 16;
-                    int iconY = h / 2;
-                    drawCardIcon(g2, iconName, iconX, iconY);
-                    g2.setColor(fg);
                     g2.setFont(new Font("Segoe UI", Font.BOLD, 12));
                     FontMetrics fm = g2.getFontMetrics();
-                    int textX = 44;
+                    int textX = (w - fm.stringWidth(getText())) / 2;
                     int textY = (h + fm.getAscent() - fm.getDescent()) / 2;
                     g2.drawString(getText(), textX, textY);
                     g2.dispose();
-                }
-
-                private void drawCardIcon(Graphics2D g2, String icon, int x, int y) {
-                    switch (icon) {
-                        case "save":
-                            g2.fillRect(x - 6, y - 8, 14, 16);
-                            g2.drawLine(x - 2, y - 4, x + 2, y);
-                            g2.drawLine(x - 2, y, x + 2, y + 4);
-                            break;
-                        case "close":
-                            g2.drawLine(x - 6, y - 6, x + 6, y + 6);
-                            g2.drawLine(x + 6, y - 6, x - 6, y + 6);
-                            break;
-                    }
                 }
             };
             btn.setFont(new Font("Segoe UI", Font.BOLD, 12));
@@ -2627,8 +3574,7 @@ public class dashboard extends JFrame {
             btn.setBorderPainted(false);
             btn.setFocusPainted(false);
             btn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            btn.setPreferredSize(new Dimension(text.length() > 12 ? 180 : 120, 44));
-            btn.addActionListener(listener);
+            btn.setPreferredSize(new Dimension(140, 44));
             return btn;
         }
     }
