@@ -490,8 +490,9 @@ public class login extends JFrame {
                     if (result != null) {
                         String dbUsername = result[0];
                         String dbRole = result[1];
+                        String dbFullName = result[2];
                         flash("Login successful! (" + dbRole + ")", true);
-                        new dashboard(dbUsername, dbRole).setVisible(true);
+                        new dashboard(dbUsername, dbRole, dbFullName).setVisible(true);
                         dispose();
                     } else {
                         isLoggingIn = false;  // Reset flag on failure
@@ -546,7 +547,7 @@ public class login extends JFrame {
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
             try (Connection conn = DriverManager.getConnection(url, user, pass)) {
-                String query = "SELECT username, role FROM users WHERE username = ? AND password = ?";
+                String query = "SELECT username, role, full_name FROM users WHERE username = ? AND password = ?";
                 try (PreparedStatement stmt = conn.prepareStatement(query)) {
                     stmt.setString(1, username);
                     stmt.setString(2, password);
@@ -555,8 +556,10 @@ public class login extends JFrame {
                         if (rs.next()) {
                             String dbUsername = rs.getString("username");
                             String dbRole = rs.getString("role");
+                            String dbFullName = rs.getString("full_name");
                             if (dbRole == null || dbRole.isEmpty()) dbRole = "secretary";
-                            return new String[]{dbUsername, dbRole.toLowerCase()};
+                            if (dbFullName == null || dbFullName.isEmpty()) dbFullName = dbUsername;
+                            return new String[]{dbUsername, dbRole.toLowerCase(), dbFullName};
                         }
                         return null;
                     }

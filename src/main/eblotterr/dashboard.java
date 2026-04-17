@@ -38,6 +38,7 @@ public class dashboard extends JFrame {
 
     private final String currentUsername;
     private final String currentRole;
+    private final String currentFullName;
     
     // ── Card panels ─────────────────────────────────────────────────────────
     private JPanel cardPanel;
@@ -81,20 +82,21 @@ public class dashboard extends JFrame {
     private List<UserData> usersData = new ArrayList<>();
 
     public dashboard() {
-        this("User", "secretary");
+        this("User", "secretary", "User");
     }
 
     public dashboard(String username) {
-        this(username, "secretary");
-    }
-
-    public boolean isSecretary() {
-        return "secretary".equalsIgnoreCase(currentRole);
+        this(username, "secretary", username);
     }
 
     public dashboard(String username, String role) {
+        this(username, role, username);
+    }
+
+    public dashboard(String username, String role, String fullName) {
         this.currentUsername = username;
         this.currentRole = (role != null) ? role.toLowerCase() : "secretary";
+        this.currentFullName = (fullName != null && !fullName.isEmpty()) ? fullName : username;
         setTitle("Barangay e-Blotter — Dashboard");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(1200, 800);
@@ -120,6 +122,11 @@ public class dashboard extends JFrame {
 
         setContentPane(buildRoot());
     }
+
+    public boolean isSecretary() {
+        return "secretary".equalsIgnoreCase(currentRole);
+    }
+
 
     // ── Database helpers ───────────────────────────────────────────────────
     Connection getConnection() throws ClassNotFoundException, SQLException {
@@ -226,7 +233,7 @@ public class dashboard extends JFrame {
                 String statusDisplay = "pending".equalsIgnoreCase(row[4].toString())
                         ? "Pending" : "Resolved";
                 tableModel.addRow(new Object[]{
-                    row[0], row[1], row[2], row[3], statusDisplay, "View"
+                    row[1], row[2], row[3], statusDisplay, "View"
                 });
             }
         }
@@ -902,14 +909,14 @@ public class dashboard extends JFrame {
         toolbar.add(leftTools, BorderLayout.WEST);
         toolbar.add(rightTools, BorderLayout.EAST);
 
-        String[] cols = {"ID", "Complainant", "Respondent", "Date", "Status", "Action"};
+        String[] cols = {"Complainant", "Respondent", "Date", "Status", "Action"};
         tableModel = new DefaultTableModel(null, cols) {
-            @Override public boolean isCellEditable(int row, int col) { return col == 5; }
+            @Override public boolean isCellEditable(int row, int col) { return col == 4; }
         };
         
         for (Object[] row : blotterData) {
             String sd = "pending".equalsIgnoreCase(row[4].toString()) ? "Pending" : "Resolved";
-            tableModel.addRow(new Object[]{row[0], row[1], row[2], row[3], sd, "View"});
+            tableModel.addRow(new Object[]{row[1], row[2], row[3], sd, "View"});
         }
 
         table = createStyledTable();
@@ -1003,7 +1010,7 @@ public class dashboard extends JFrame {
             @Override public void mouseClicked(MouseEvent evt) {
                 int col = tbl.columnAtPoint(evt.getPoint());
                 int row = tbl.rowAtPoint(evt.getPoint());
-                if (col == 4 && row >= 0 && isSecretary()) showUpdateStatusDialog(row);
+                if (col == 3 && row >= 0 && isSecretary()) showUpdateStatusDialog(row);
             }
         });
 
@@ -1023,22 +1030,11 @@ public class dashboard extends JFrame {
         ((DefaultTableCellRenderer) header.getDefaultRenderer())
                 .setHorizontalAlignment(SwingConstants.LEFT);
 
-        int[] widths = {80, 180, 180, 110, 100, 120};
+        int[] widths = {180, 180, 110, 100, 120};
         for (int i = 0; i < widths.length; i++)
             tbl.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
 
-        tbl.getColumnModel().getColumn(0).setCellRenderer(
-            (t, val, sel, foc, row, col) -> {
-                JLabel l = new JLabel(val == null ? "" : "#" + val);
-                l.setFont(new Font("Segoe UI", Font.BOLD, 13));
-                l.setForeground(BLUE);
-                l.setBorder(new EmptyBorder(0, 12, 0, 0));
-                l.setOpaque(true);
-                l.setBackground(row % 2 == 0 ? WHITE : new Color(248, 250, 252));
-                return l;
-            });
-
-        tbl.getColumnModel().getColumn(4).setCellRenderer(
+        tbl.getColumnModel().getColumn(3).setCellRenderer(
             (t, val, sel, foc, row, col) -> {
                 String status = val == null ? "" : val.toString();
                 boolean isPending = "Pending".equals(status);
@@ -1071,9 +1067,17 @@ public class dashboard extends JFrame {
                 wrap.add(pill);
                 return wrap;
             });
+        
+        // Explicitly set null editor for status column to prevent editing
+        tbl.getColumnModel().getColumn(3).setCellEditor(null);
+        
+        // Set row selection mode to single selection
+        tbl.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        tbl.setRowSelectionAllowed(true);
+        tbl.setColumnSelectionAllowed(false);
 
-        tbl.getColumnModel().getColumn(5).setCellRenderer(new ButtonRenderer());
-        tbl.getColumnModel().getColumn(5).setCellEditor(new ButtonEditor(new JCheckBox()));
+        tbl.getColumnModel().getColumn(4).setCellRenderer(new ButtonRenderer());
+        tbl.getColumnModel().getColumn(4).setCellEditor(new ButtonEditor(new JCheckBox()));
 
         return tbl;
     }
@@ -1108,9 +1112,7 @@ public class dashboard extends JFrame {
                 refreshHistoryPanel();
                 cardLayout.show(cardPanel, "dashboard");
                 setActiveButton(homeBtn);
-                JOptionPane.showMessageDialog(this,
-                    "Blotter entry saved successfully!",
-                    "Success", JOptionPane.INFORMATION_MESSAGE);
+              
             }
         );
         currentAddBlotterPanel.setBackground(PAGE_BG);
@@ -1337,31 +1339,22 @@ public class dashboard extends JFrame {
         JPanel filterRight = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         filterRight.setOpaque(false);
 
-        JPanel searchBar = new JPanel(new BorderLayout(10, 0));
-        searchBar.setBackground(WHITE);
-        searchBar.setBorder(new CompoundBorder(
-            new RoundedBorder(BORDER_CLR, 1, 8),
-            new EmptyBorder(0, 12, 0, 0)));
-        searchBar.setPreferredSize(new Dimension(220, 36));
+       
+        
 
         JLabel searchIcon = new JLabel("\uD83D\uDD0D");
         searchIcon.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         searchIcon.setForeground(TEXT_SEC);
 
-        JTextField historySearchField = new JTextField("Search history...");
-        historySearchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        historySearchField.setForeground(TEXT_SEC);
-        historySearchField.setBorder(null);
-        historySearchField.setOpaque(false);
+       
 
-        searchBar.add(searchIcon, BorderLayout.WEST);
-        searchBar.add(historySearchField, BorderLayout.CENTER);
+       
 
         JButton exportBtn = createCardButton("Export", STAT_GREEN, new Color(40, 150, 100), WHITE);
         exportBtn.setPreferredSize(new Dimension(100, 36));
         exportBtn.addActionListener(e -> exportHistoryData());
 
-        filterRight.add(searchBar);
+        //filterRight.add(searchBar);
         filterRight.add(exportBtn);
 
         filterCard.add(filterLeft, BorderLayout.WEST);
@@ -1371,7 +1364,7 @@ public class dashboard extends JFrame {
     }
 
     private JPanel buildHistoryTableContainer() {
-        String[] columns = {"ID", "Complainant", "Respondent", "Type", "Date", "Status", "Description"};
+        String[] columns = {"Complainant", "Respondent", "Type", "Date", "Status", "Description"};
         DefaultTableModel historyModel = new DefaultTableModel(null, columns) {
             @Override public boolean isCellEditable(int row, int col) { return false; }
         };
@@ -1383,7 +1376,7 @@ public class dashboard extends JFrame {
                 description = description.substring(0, 47) + "...";
             }
             historyModel.addRow(new Object[]{
-                "#" + row[0], row[1], row[2], 
+                row[1], row[2], 
                 row[6] != null ? row[6].toString() : "N/A",
                 row[3], statusDisplay, description
             });
@@ -1562,10 +1555,6 @@ public class dashboard extends JFrame {
 
         JPanel profileCard = createProfileInfoCard();
         content.add(profileCard);
-        content.add(Box.createVerticalStrut(20));
-
-        JPanel passwordCard = createPasswordChangeCard();
-        content.add(passwordCard);
 
         return content;
     }
@@ -1600,9 +1589,11 @@ public class dashboard extends JFrame {
 
         JPanel infoGrid = new JPanel(new GridLayout(0, 2, 20, 12));
         infoGrid.setOpaque(false);
-        infoGrid.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
+        infoGrid.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
         infoGrid.setAlignmentX(Component.LEFT_ALIGNMENT);
 
+        infoGrid.add(createInfoLabel("Full Name:"));
+        infoGrid.add(createInfoValue(currentFullName));
         infoGrid.add(createInfoLabel("Username:"));
         infoGrid.add(createInfoValue(currentUsername));
         infoGrid.add(createInfoLabel("Role:"));
@@ -1646,19 +1637,14 @@ public class dashboard extends JFrame {
         namePanel.setLayout(new BoxLayout(namePanel, BoxLayout.Y_AXIS));
         namePanel.setBorder(new EmptyBorder(0, 16, 0, 0));
 
-        String displayName = currentUsername != null ? currentUsername : "User";
-        if (displayName.contains("_")) {
-            String[] parts = displayName.split("_");
-            displayName = cap(parts[0]) + " " + (parts.length > 1 ? cap(parts[1]) : "");
-        } else {
-            displayName = cap(displayName);
-        }
+        String displayName = currentFullName != null && !currentFullName.isEmpty() 
+            ? currentFullName : (currentUsername != null ? currentUsername : "User");
 
         JLabel nameLabel = new JLabel(displayName);
         nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
         nameLabel.setForeground(TEXT_PRI);
 
-        JLabel roleLabel = new JLabel(cap(currentRole));
+        JLabel roleLabel = new JLabel("(" + cap(currentRole) + ")");
         roleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         roleLabel.setForeground(TEXT_SEC);
 
@@ -2011,6 +1997,16 @@ public class dashboard extends JFrame {
         header.setBorder(new MatteBorder(0, 0, 1, 0, BORDER_CLR));
         header.setPreferredSize(new Dimension(0, 42));
 
+        usersTable.getColumnModel().getColumn(2).setCellRenderer((t, val, sel, foc, row, col) -> {
+            String fullName = val == null ? "" : val.toString();
+            
+            JLabel l = new JLabel(fullName);
+            l.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            l.setForeground(TEXT_PRI);
+            l.setBorder(new EmptyBorder(0, 12, 0, 12));
+            return l;
+        });
+
         usersTable.getColumnModel().getColumn(4).setCellRenderer((t, val, sel, foc, row, col) -> {
             String status = val == null ? "" : val.toString();
             boolean isActive = "Active".equals(status);
@@ -2043,6 +2039,11 @@ public class dashboard extends JFrame {
 
         usersTable.getColumnModel().getColumn(5).setCellRenderer(new UserActionsRenderer());
         usersTable.getColumnModel().getColumn(5).setCellEditor(new UserActionsEditor(new JCheckBox()));
+        
+        // Set minimum width for Actions column to ensure buttons are visible
+        usersTable.getColumnModel().getColumn(5).setMinWidth(150);
+        usersTable.getColumnModel().getColumn(5).setPreferredWidth(150);
+        usersTable.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
 
         JScrollPane scroll = new JScrollPane(usersTable);
         scroll.setBorder(BorderFactory.createEmptyBorder());
@@ -2073,23 +2074,34 @@ public class dashboard extends JFrame {
         usersData.clear();
         usersTableModel.setRowCount(0);
         
-        // Add current user
-        usersData.add(new UserData(1, currentUsername, cap(currentUsername), currentRole, "Active", "Today"));
-        usersTableModel.addRow(new Object[]{"#1", currentUsername, cap(currentUsername), cap(currentRole), "Active", "Actions"});
-        
-        // Add demo users if secretary
-        if (isSecretary()) {
-            usersData.add(new UserData(2, "staff_user", "Staff User", "staff", "Active", "Yesterday"));
-            usersTableModel.addRow(new Object[]{"#2", "staff_user", "Staff User", "Staff", "Active", "Actions"});
-            
-            usersData.add(new UserData(3, "admin_user", "Admin User", "admin", "Active", "Nov 15, 2024"));
-            usersTableModel.addRow(new Object[]{"#3", "admin_user", "Admin User", "Admin", "Active", "Actions"});
+        try (Connection conn = getConnection()) {
+            String query = "SELECT user_id, username, full_name, role FROM users";
+            try (Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(query)) {
+                int id = 1;
+                while (rs.next()) {
+                    int userId = rs.getInt("user_id");
+                    String username = rs.getString("username");
+                    String fullName = rs.getString("full_name");
+                    String role = rs.getString("role");
+                    
+                    usersData.add(new UserData(userId, username, fullName, role, "Active", "Today"));
+                    usersTableModel.addRow(new Object[]{"#" + id++, username, fullName, cap(role), "Active", "Actions"});
+                }
+            }
+        } catch (ClassNotFoundException | SQLException e) {
+            System.err.println("Error loading users: " + e.getMessage());
+            // Fallback to current user only if database fails
+            String displayFullName = currentFullName != null && !currentFullName.isEmpty() 
+                ? currentFullName : cap(currentUsername);
+            usersData.add(new UserData(1, currentUsername, displayFullName, currentRole, "Active", "Today"));
+            usersTableModel.addRow(new Object[]{"#1", currentUsername, displayFullName, cap(currentRole), "Active", "Actions"});
         }
     }
 
     private void showAddUserDialog() {
         JDialog dialog = new JDialog(this, "Add New User", true);
-        dialog.setSize(450, 400);
+        dialog.setSize(450, 450);
         dialog.setLocationRelativeTo(this);
         dialog.setResizable(false);
 
@@ -2115,7 +2127,7 @@ public class dashboard extends JFrame {
         passwordField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
         passwordField.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JComboBox<String> roleCombo = new JComboBox<>(new String[]{"staff", "secretary", "admin"});
+        JComboBox<String> roleCombo = new JComboBox<>(new String[]{"secretary", "captain", "kagawad"});
         roleCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         roleCombo.setBackground(WHITE);
         roleCombo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
@@ -2141,9 +2153,41 @@ public class dashboard extends JFrame {
                 return;
             }
 
-            int newId = usersData.size() + 1;
-            usersData.add(new UserData(newId, username, fullName, role, "Active", "Never"));
-            usersTableModel.addRow(new Object[]{"#" + newId, username, fullName, cap(role), "Active", "Actions"});
+            if (fullName.isEmpty() || fullName.equals("Full Name")) {
+                JOptionPane.showMessageDialog(dialog, "Full Name is required.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            if (password.isEmpty() || password.equals("Password")) {
+                JOptionPane.showMessageDialog(dialog, "Password is required.",
+                    "Validation Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+
+            // Insert into database
+            try (Connection conn = getConnection()) {
+                String insertQuery = "INSERT INTO users (username, password, full_name, role) VALUES (?, ?, ?, ?)";
+                try (PreparedStatement stmt = conn.prepareStatement(insertQuery, Statement.RETURN_GENERATED_KEYS)) {
+                    stmt.setString(1, username);
+                    stmt.setString(2, password);
+                    stmt.setString(3, fullName);
+                    stmt.setString(4, role);
+                    stmt.executeUpdate();
+                    
+                    // Get the generated user_id
+                    ResultSet rs = stmt.getGeneratedKeys();
+                    if (rs.next()) {
+                        int newId = rs.getInt(1);
+                        usersData.add(new UserData(newId, username, fullName, role, "Active", "Today"));
+                        usersTableModel.addRow(new Object[]{"#" + (usersTableModel.getRowCount() + 1), username, fullName, cap(role), "Active", "Actions"});
+                    }
+                }
+            } catch (ClassNotFoundException | SQLException ex) {
+                JOptionPane.showMessageDialog(dialog, "Error creating user: " + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
             
             dialog.dispose();
             JOptionPane.showMessageDialog(this, "User created successfully!",
@@ -2181,7 +2225,7 @@ public class dashboard extends JFrame {
 
     private void showEditUserDialog(UserData user) {
         JDialog dialog = new JDialog(this, "Edit User", true);
-        dialog.setSize(450, 350);
+        dialog.setSize(450, 400);
         dialog.setLocationRelativeTo(this);
         dialog.setResizable(false);
 
@@ -2200,7 +2244,7 @@ public class dashboard extends JFrame {
         fullNameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
         fullNameField.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JComboBox<String> roleCombo = new JComboBox<>(new String[]{"staff", "secretary", "admin"});
+        JComboBox<String> roleCombo = new JComboBox<>(new String[]{"secretary", "captain", "kagawad"});
         roleCombo.setSelectedItem(user.role.toLowerCase());
         roleCombo.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         roleCombo.setBackground(WHITE);
@@ -2223,9 +2267,29 @@ public class dashboard extends JFrame {
         JButton cancelBtn = createCardButton("Cancel", new Color(108, 117, 125), new Color(90, 98, 104), WHITE);
 
         saveBtn.addActionListener(e -> {
-            user.fullName = fullNameField.getText().trim();
-            user.role = (String) roleCombo.getSelectedItem();
-            user.status = (String) statusCombo.getSelectedItem();
+            String newFullName = fullNameField.getText().trim();
+            String newRole = (String) roleCombo.getSelectedItem();
+            String newStatus = (String) statusCombo.getSelectedItem();
+            
+            // Update database
+            try (Connection conn = getConnection()) {
+                String updateQuery = "UPDATE users SET full_name = ?, role = ? WHERE user_id = ?";
+                try (PreparedStatement stmt = conn.prepareStatement(updateQuery)) {
+                    stmt.setString(1, newFullName);
+                    stmt.setString(2, newRole);
+                    stmt.setInt(3, user.id);
+                    stmt.executeUpdate();
+                }
+            } catch (ClassNotFoundException | SQLException ex) {
+                JOptionPane.showMessageDialog(dialog, "Error updating user: " + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            // Update local data
+            user.fullName = newFullName;
+            user.role = newRole;
+            user.status = newStatus;
             
             // Update table
             for (int i = 0; i < usersTableModel.getRowCount(); i++) {
@@ -2280,6 +2344,20 @@ public class dashboard extends JFrame {
             "Confirm Delete", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
         
         if (confirm == JOptionPane.YES_OPTION) {
+            // Delete from database
+            try (Connection conn = getConnection()) {
+                String deleteQuery = "DELETE FROM users WHERE user_id = ?";
+                try (PreparedStatement stmt = conn.prepareStatement(deleteQuery)) {
+                    stmt.setInt(1, userId);
+                    stmt.executeUpdate();
+                }
+            } catch (ClassNotFoundException | SQLException ex) {
+                JOptionPane.showMessageDialog(this, "Error deleting user: " + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            
+            // Remove from local data
             usersData.removeIf(u -> u.id == userId);
             for (int i = 0; i < usersTableModel.getRowCount(); i++) {
                 if (usersTableModel.getValueAt(i, 1).equals(username)) {
@@ -2495,7 +2573,7 @@ public class dashboard extends JFrame {
 
         // System Settings Card
         JPanel systemCard = createSettingsCard("SYSTEM MAINTENANCE");
-        systemCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 200));
+        systemCard.setMaximumSize(new Dimension(Integer.MAX_VALUE, 250));
 
         JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         buttonRow.setOpaque(false);
@@ -2513,6 +2591,13 @@ public class dashboard extends JFrame {
         buttonRow.add(backupNowBtn);
         buttonRow.add(clearCacheBtn);
         buttonRow.add(resetSettingsBtn);
+
+        // Reset Blotter Data Button (Secretary Only)
+        if (isSecretary()) {
+            JButton resetBlotterBtn = createCardButton("Reset Blotter", new Color(220, 53, 69), new Color(200, 40, 50), WHITE);
+            resetBlotterBtn.addActionListener(e -> resetAllBlotterData());
+            buttonRow.add(resetBlotterBtn);
+        }
 
         systemCard.add(buttonRow);
 
@@ -2605,6 +2690,49 @@ public class dashboard extends JFrame {
             "Success", JOptionPane.INFORMATION_MESSAGE);
     }
 
+    private void resetAllBlotterData() {
+        int confirm = JOptionPane.showConfirmDialog(this,
+            "⚠ WARNING: This will PERMANENTLY DELETE ALL blotter records, complainants, and respondents.\n\n" +
+            "This action cannot be undone. Are you sure you want to continue?",
+            "Confirm Reset All Blotter Data",
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE);
+        
+        if (confirm == JOptionPane.YES_OPTION) {
+            try (Connection conn = getConnection()) {
+                // Delete all blotter records (this will cascade to complainants and respondents due to foreign key constraints)
+                String deleteBlotterQuery = "DELETE FROM blotter";
+                try (PreparedStatement stmt = conn.prepareStatement(deleteBlotterQuery)) {
+                    int deletedCount = stmt.executeUpdate();
+                    
+                    // Also delete orphaned complainants and respondents
+                    String deleteOrphanedComplainants = "DELETE FROM complainant WHERE complainant_id NOT IN (SELECT complainant_id FROM blotter)";
+                    String deleteOrphanedRespondents = "DELETE FROM respondent WHERE respondent_id NOT IN (SELECT respondent_id FROM blotter)";
+                    
+                    try (PreparedStatement stmt1 = conn.prepareStatement(deleteOrphanedComplainants)) {
+                        stmt1.executeUpdate();
+                    }
+                    try (PreparedStatement stmt2 = conn.prepareStatement(deleteOrphanedRespondents)) {
+                        stmt2.executeUpdate();
+                    }
+                    
+                    // Reload data
+                    loadBlotterData();
+                    refreshTableAndStats();
+                    refreshHistoryPanel();
+                    
+                    JOptionPane.showMessageDialog(this,
+                        "Successfully deleted " + deletedCount + " blotter record(s) and associated data.",
+                        "Reset Complete", JOptionPane.INFORMATION_MESSAGE);
+                }
+            } catch (ClassNotFoundException | SQLException ex) {
+                JOptionPane.showMessageDialog(this,
+                    "Error resetting blotter data: " + ex.getMessage(),
+                    "Error", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
     private void resetSettingsToDefault() {
         int confirm = JOptionPane.showConfirmDialog(this,
             "Reset all settings to default values?",
@@ -2670,7 +2798,7 @@ public class dashboard extends JFrame {
             printBtn = createActionButton("Print", STAT_GREEN, new Color(230, 245, 239));
 
             add(viewBtn);
-            add(Box.createHorizontalStrut(6));
+            add(Box.createHorizontalStrut(15));
             add(printBtn);
         }
 
@@ -2713,7 +2841,7 @@ public class dashboard extends JFrame {
             });
 
             panel.add(viewBtn);
-            panel.add(Box.createHorizontalStrut(6));
+            panel.add(Box.createHorizontalStrut(15));
             panel.add(printBtn);
         }
 
@@ -2874,8 +3002,8 @@ public class dashboard extends JFrame {
     private void showUpdateStatusDialog(int selectedRow) {
         if (selectedRow < 0 || selectedRow >= tableModel.getRowCount()) return;
 
-        String blotterNum = tableModel.getValueAt(selectedRow, 0).toString();
-        String currentStatus = tableModel.getValueAt(selectedRow, 4).toString();
+        String blotterNum = blotterData.get(selectedRow)[0].toString();
+        String currentStatus = tableModel.getValueAt(selectedRow, 3).toString();
 
         if ("Resolved".equals(currentStatus)) {
             JOptionPane.showMessageDialog(this,
@@ -3049,7 +3177,7 @@ public class dashboard extends JFrame {
                     if (get()) {
                         String display = "pending".equalsIgnoreCase(newStatus) ? "Pending" : "Resolved";
                         if (row < blotterData.size()) blotterData.get(row)[4] = newStatus;
-                        tableModel.setValueAt(display, row, 4);
+                        tableModel.setValueAt(display, row, 3);
                         updateStatCards();
                         refreshHistoryPanel();
                         JOptionPane.showMessageDialog(dashboard.this,
